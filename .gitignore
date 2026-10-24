@@ -1,0 +1,17 @@
+node_modules/
+out/
+dist/
+release/
+*.log
+.DS_Store
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+smoke.json
+*.err.txt
+*.out.txt
+screenshot.png
+.vite/
+electron.vite.config.ts.*.mjs
+

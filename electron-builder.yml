@@ -1,0 +1,30 @@
+appId: com.musichub.app
+productName: MusicHub
+copyright: Copyright © 2026 Xiesta
+directories:
+  output: release/${version}
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+asarUnpack:
+  - '**/node_modules/better-sqlite3/**'
+npmRebuild: false
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
+win:
+  executableName: MusicHub
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  shortcutName: ${productName}
+  artifactName: ${productName}-${version}-Setup.${ext}
+portable:
+  artifactName: ${productName}-${version}-Portable.${ext}
