@@ -1,5 +1,5 @@
 import type { ScanProgress } from '@shared/types'
-import { getLibraryRoots, setLibraryRoots } from '../settings'
+import { getLibraryRoots, getSetting, setLibraryRoots, setSetting } from '../settings'
 import {
   deleteTracks,
   getLibraryStats,
@@ -8,7 +8,7 @@ import {
   listTracks,
   setFavorite
 } from './repository'
-import { scanDirectories } from './scanner'
+import { PARSER_VERSION, scanDirectories } from './scanner'
 
 type ProgressSink = (progress: ScanProgress) => void
 
@@ -54,9 +54,14 @@ export async function scanLibrary(): Promise<ScanProgress> {
   scanning = true
   let lastEmit = 0
 
+  // 解析逻辑升级后，旧索引需要全量重建（否则缓存会一直跳过）
+  const storedVersion = getSetting<number>('scanner.parserVersion', 0)
+  const forceReparse = storedVersion !== PARSER_VERSION
+
   try {
-    return await scanDirectories(roots, {
+    const result = await scanDirectories(roots, {
       prune: true,
+      forceReparse,
       onProgress: (progress) => {
         const now = Date.now()
         if (now - lastEmit > 90 || progress.phase !== 'parsing') {
@@ -65,6 +70,8 @@ export async function scanLibrary(): Promise<ScanProgress> {
         }
       }
     })
+    setSetting('scanner.parserVersion', PARSER_VERSION)
+    return result
   } catch (error) {
     const failed = idleProgress()
     failed.phase = 'error'

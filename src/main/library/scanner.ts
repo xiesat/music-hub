@@ -88,14 +88,51 @@ function embeddedLyricToLrc(lyrics: readonly unknown[] | undefined): string | nu
   return plain && plain.length > 0 ? plain : null
 }
 
-function readSidecarLyric(filePath: string): string | null {
-  const lrcPath = filePath.slice(0, filePath.length - extname(filePath).length) + '.lrc'
-  try {
-    if (fs.existsSync(lrcPath)) return fs.readFileSync(lrcPath, 'utf-8')
-  } catch {
-    /* 忽略 */
+/** 解析器版本：逻辑变更时 +1，旧库会在下次扫描时强制重新解析 */
+export const PARSER_VERSION = 2
+
+/** 歌词文件常见 UTF-8(BOM) / GBK，UTF-8 解不出来时回退 GB18030 */
+function decodeText(buffer: Buffer): string {
+  if (buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
+    return buffer.subarray(3).toString('utf8')
   }
-  return null
+  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {
+    return buffer.subarray(2).toString('utf16le')
+  }
+  const utf8 = buffer.toString('utf8')
+  if (utf8.includes('\uFFFD')) {
+    try {
+      return new TextDecoder('gb18030').decode(buffer)
+    } catch {
+      return utf8
+    }
+  }
+  return utf8
+}
+
+function lrcPathFor(filePath: string): string {
+  return filePath.slice(0, filePath.length - extname(filePath).length) + '.lrc'
+}
+
+/** 侧车歌词的修改时间，用来判断歌词是否需要重解析 */
+function sidecarMtime(filePath: string): number | null {
+  try {
+    const lrcPath = lrcPathFor(filePath)
+    if (!fs.existsSync(lrcPath)) return null
+    return Math.floor(fs.statSync(lrcPath).mtimeMs)
+  } catch {
+    return null
+  }
+}
+
+function readSidecarLyric(filePath: string): string | null {
+  try {
+    const lrcPath = lrcPathFor(filePath)
+    if (!fs.existsSync(lrcPath)) return null
+    return decodeText(fs.readFileSync(lrcPath))
+  } catch {
+    return null
+  }
 }
 
 async function parseOne(filePath: string, stat: fs.Stats): Promise<UpsertTrackInput> {
@@ -120,7 +157,8 @@ async function parseOne(filePath: string, stat: fs.Stats): Promise<UpsertTrackIn
     size: stat.size,
     mtime: Math.floor(stat.mtimeMs),
     coverPath: null,
-    lyric: readSidecarLyric(filePath)
+    lyric: readSidecarLyric(filePath),
+    lyricMtime: sidecarMtime(filePath)
   }
 
   try {
@@ -154,7 +192,8 @@ async function parseOne(filePath: string, stat: fs.Stats): Promise<UpsertTrackIn
       sampleRate: format.sampleRate ?? null,
       channels: format.numberOfChannels ?? null,
       coverPath: coverPath ?? null,
-      lyric: base.lyric ?? embeddedLyricToLrc(common.lyrics)
+      lyric: base.lyric ?? embeddedLyricToLrc(common.lyrics),
+      lyricMtime: base.lyricMtime
     }
   } catch {
     // 解析失败也要入库，避免文件被反复重试
@@ -166,6 +205,8 @@ export interface ScanOptions {
   onProgress: (progress: ScanProgress) => void
   /** 扫描结束后删除磁盘上已不存在的记录 */
   prune?: boolean
+  /** 忽略缓存，对所有文件重新解析（解析器升级后使用） */
+  forceReparse?: boolean
 }
 
 export async function scanDirectories(roots: string[], options: ScanOptions): Promise<ScanProgress> {
@@ -216,8 +257,16 @@ export async function scanDirectories(roots: string[], options: ScanOptions): Pr
         const stat = await fs.promises.stat(file)
         const mtime = Math.floor(stat.mtimeMs)
         const cached = existing.get(file)
+        const lrcMtime = sidecarMtime(file)
 
-        if (cached && cached.mtime === mtime && cached.size === stat.size) {
+        const cacheHit =
+          cached &&
+          !options.forceReparse &&
+          cached.mtime === mtime &&
+          cached.size === stat.size &&
+          (cached.lyricMtime ?? null) === lrcMtime
+
+        if (cacheHit) {
           progress.skipped += 1
         } else {
           const parsed = await parseOne(file, stat)

@@ -87,15 +87,31 @@ export interface ExistingTrack {
   id: string
   mtime: number | null
   size: number | null
+  lyricMtime: number | null
 }
 
 export function loadExistingByPath(): Map<string, ExistingTrack> {
   const rows = getDb()
-    .prepare("SELECT id, path, file_mtime, size FROM tracks WHERE kind = 'local' AND path IS NOT NULL")
-    .all() as { id: string; path: string; file_mtime: number | null; size: number | null }[]
+    .prepare(
+      "SELECT id, path, file_mtime, size, lyric_mtime FROM tracks WHERE kind = 'local' AND path IS NOT NULL"
+    )
+    .all() as {
+    id: string
+    path: string
+    file_mtime: number | null
+    size: number | null
+    lyric_mtime: number | null
+  }[]
 
   const map = new Map<string, ExistingTrack>()
-  for (const row of rows) map.set(row.path, { id: row.id, mtime: row.file_mtime, size: row.size })
+  for (const row of rows) {
+    map.set(row.path, {
+      id: row.id,
+      mtime: row.file_mtime,
+      size: row.size,
+      lyricMtime: row.lyric_mtime
+    })
+  }
   return map
 }
 
@@ -119,16 +135,17 @@ export interface UpsertTrackInput {
   mtime: number | null
   coverPath: string | null
   lyric: string | null
+  lyricMtime: number | null
 }
 
 const UPSERT_SQL = `
 INSERT INTO tracks (
   id, kind, title, artist, album, album_artist, duration_ms, track_no, disc_no, year, genre,
-  path, format, bitrate, sample_rate, channels, size, file_mtime, cover_path, lyric,
+  path, format, bitrate, sample_rate, channels, size, file_mtime, cover_path, lyric, lyric_mtime,
   created_at, updated_at
 ) VALUES (
   @id, 'local', @title, @artist, @album, @albumArtist, @durationMs, @trackNo, @discNo, @year, @genre,
-  @path, @format, @bitrate, @sampleRate, @channels, @size, @mtime, @coverPath, @lyric,
+  @path, @format, @bitrate, @sampleRate, @channels, @size, @mtime, @coverPath, @lyric, @lyricMtime,
   @now, @now
 )
 ON CONFLICT(path) DO UPDATE SET
@@ -149,6 +166,7 @@ ON CONFLICT(path) DO UPDATE SET
   file_mtime = excluded.file_mtime,
   cover_path = COALESCE(excluded.cover_path, tracks.cover_path),
   lyric = COALESCE(excluded.lyric, tracks.lyric),
+  lyric_mtime = excluded.lyric_mtime,
   updated_at = excluded.updated_at
 `
 

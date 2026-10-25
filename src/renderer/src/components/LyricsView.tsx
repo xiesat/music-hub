@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Music4 } from 'lucide-react'
+import { ArrowLeft, Music4, RefreshCw } from 'lucide-react'
 import type { Track } from '@shared/types'
 import { findActiveLine, parseLrc, type LyricLine } from '../lib/lrc'
 import { formatBytes, formatDuration } from '../lib/format'
@@ -115,16 +115,16 @@ export function LyricsView(): JSX.Element | null {
         <div className="absolute inset-0 bg-gradient-to-b from-ink-950/70 via-ink-950/85 to-ink-950" />
       </div>
       <div className="relative flex h-full flex-col">
-        <header className="flex items-center justify-between px-8 py-3 text-[11px] text-ink-400">
-          <span>正在播放 · 歌词</span>
+        <header className="flex items-center justify-between border-b border-white/5 px-6 py-2.5">
           <button
             onClick={closeLyrics}
-            className="flex items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-white/10 hover:text-ink-100"
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[12px] text-ink-100 transition-colors hover:border-white/25 hover:bg-white/12 hover:text-white"
             title="返回曲库（Esc）"
           >
-            <ChevronDown size={15} />
-            收起
+            <ArrowLeft size={15} />
+            返回曲库
           </button>
+          <span className="text-[11px] text-ink-500">Esc 关闭 · 空格 播放/暂停 · 点击歌词行跳转</span>
         </header>
         <div className="flex min-h-0 flex-1 gap-10 px-10 pb-8">
           <div className="flex w-[300px] shrink-0 flex-col gap-5">
@@ -177,9 +177,17 @@ export function LyricsView(): JSX.Element | null {
                   <div className="flex h-[40vh] flex-col items-center justify-center gap-2 text-center">
                     <Music4 size={22} className="text-ink-600" />
                     <p className="text-[13px] text-ink-400">这首歌还没有歌词</p>
-                    <p className="max-w-[360px] text-[12px] leading-relaxed text-ink-500">
-                      把同名 .lrc 文件放到音频旁边后重新扫描；标签里的内嵌歌词会在扫描时自动读取。
+                    <p className="max-w-[380px] text-[12px] leading-relaxed text-ink-500">
+                      在音频旁放同名 .lrc（支持 UTF-8 / GBK），或确认歌曲标签里带内嵌歌词，
+                      然后回到曲库点「重新扫描」。
                     </p>
+                    <button
+                      onClick={closeLyrics}
+                      className="mt-2 flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-[12px] text-ink-300 transition-colors hover:bg-white/5 hover:text-ink-100"
+                    >
+                      <RefreshCw size={12} />
+                      返回曲库重新扫描
+                    </button>
                   </div>
                 ) : (
                   parsed.lines.map((line, index) => {

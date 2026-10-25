@@ -100,5 +100,10 @@ export const migrations: string[] = [
   -- v3: path 改为普通唯一索引（部分索引无法被 ON CONFLICT(path) 命中）
   DROP INDEX IF EXISTS ux_track_path;
   CREATE UNIQUE INDEX IF NOT EXISTS ux_track_path ON tracks(path);
+  `,
+
+  `
+  -- v4: 记录侧车歌词文件时间，用于判断歌词是否需要重解析
+  ALTER TABLE tracks ADD COLUMN lyric_mtime INTEGER;
   `
 ]
