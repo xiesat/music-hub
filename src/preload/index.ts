@@ -72,6 +72,8 @@ const providers: ProviderApi = {
     ipcRenderer.invoke('providers:online-lyric', title, artist),
   download: (providerId: string, key: string, title: string, artist: string) =>
     ipcRenderer.invoke('providers:download', providerId, key, title, artist),
+  importScript: (path?: string) => ipcRenderer.invoke('providers:import-script', path),
+  removeScript: (id: string): Promise<void> => ipcRenderer.invoke('providers:remove-script', id),
   onDownloadProgress: (listener: (payload: { key: string; received: number; total: number }) => void) => {
     const handler = (_event: unknown, payload: { key: string; received: number; total: number }): void =>
       listener(payload)

@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { app } from 'electron'
 import type {
   DownloadResult,
@@ -11,9 +11,11 @@ import type {
 } from '@shared/provider'
 import { getDb } from '../db'
 import { ingestFile } from '../library/scanner'
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { getSetting } from '../settings'
 import { httpRequest } from './http'
 import { neteaseProvider } from './netease'
+import { callScriptProvider, disposeScriptProvider, getScriptPlatform } from './sandbox'
 
 interface BuiltinProvider {
   info: ProviderInfo
@@ -35,13 +37,31 @@ function ensureSeeded(): void {
   }
 }
 
+interface ScriptRow {
+  id: string
+  name: string
+  version: string | null
+  script_path: string | null
+  enabled: number
+  last_ok_at: number | null
+  last_error: string | null
+}
+
+function scriptRows(): ScriptRow[] {
+  return getDb()
+    .prepare(
+      "SELECT id, name, version, script_path, enabled, last_ok_at, last_error FROM providers WHERE source_type = 'script'"
+    )
+    .all() as ScriptRow[]
+}
+
 export function listProviders(): ProviderInfo[] {
   ensureSeeded()
   const rows = getDb()
-    .prepare('SELECT id, enabled, last_ok_at, last_error FROM providers')
+    .prepare("SELECT id, enabled, last_ok_at, last_error FROM providers WHERE source_type <> 'script'")
     .all() as { id: string; enabled: number; last_ok_at: number | null; last_error: string | null }[]
 
-  return builtins.map((provider) => {
+  const builtinInfos = builtins.map((provider) => {
     const row = rows.find((item) => item.id === provider.info.id)
     return {
       ...provider.info,
@@ -50,11 +70,72 @@ export function listProviders(): ProviderInfo[] {
       lastError: row?.last_error ?? null
     }
   })
+
+  const scripts = scriptRows().map((row) => ({
+    id: row.id,
+    name: row.name,
+    version: row.version ?? '1.0.0',
+    kind: 'script' as const,
+    enabled: row.enabled === 1,
+    capabilities: ['search', 'stream', 'lyric'],
+    lastOkAt: row.last_ok_at,
+    lastError: row.last_error
+  }))
+
+  return [...builtinInfos, ...scripts]
 }
 
 export function toggleProvider(id: string, enabled: boolean): void {
   ensureSeeded()
   getDb().prepare('UPDATE providers SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id)
+}
+
+export function providersDir(): string {
+  const dir = join(app.getPath('userData'), 'providers')
+  mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+/** 导入音源脚本：复制到 userData/providers 并试加载一次 */
+export async function importScriptProvider(sourcePath: string): Promise<ProviderInfo> {
+  const fileName = basename(sourcePath)
+  const target = join(providersDir(), fileName)
+  copyFileSync(sourcePath, target)
+
+  const id = 'script:' + fileName.replace(/\.js$/i, '')
+  // 先跑一次极简调用，确认脚本能加载并拿到它自报的平台名
+  await callScriptProvider<unknown>(target, 'search', [''], 8000).catch(() => undefined)
+  const platform = getScriptPlatform(target)
+
+  getDb()
+    .prepare(
+      'INSERT INTO providers (id, name, version, source_type, script_path, enabled)' +
+        " VALUES (?, ?, '1.0.0', 'script', ?, 1)" +
+        ' ON CONFLICT(id) DO UPDATE SET script_path = excluded.script_path, enabled = 1'
+    )
+    .run(id, platform || fileName.replace(/\.js$/i, ''), target)
+
+  const created = listProviders().find((item) => item.id === id)
+  if (!created) throw new Error('音源脚本注册失败')
+  return created
+}
+
+export function removeScriptProvider(id: string): void {
+  const row = getDb().prepare('SELECT script_path FROM providers WHERE id = ?').get(id) as
+    | { script_path: string | null }
+    | undefined
+  if (row?.script_path) {
+    disposeScriptProvider(row.script_path)
+    if (existsSync(row.script_path)) {
+      try {
+        // 脚本文件由应用托管，删除时一并清理
+        require('node:fs').unlinkSync(row.script_path)
+      } catch {
+        /* 忽略 */
+      }
+    }
+  }
+  getDb().prepare('DELETE FROM providers WHERE id = ?').run(id)
 }
 
 function getProvider(id: string): BuiltinProvider {
@@ -77,7 +158,36 @@ function markHealth(id: string, ok: boolean, error?: string): void {
   }
 }
 
+function scriptFor(id: string): ScriptRow | null {
+  const row = scriptRows().find((item) => item.id === id)
+  return row?.script_path ? row : null
+}
+
+interface ScriptTrack {
+  id?: string | number
+  title?: string
+  artist?: string
+  album?: string
+  duration?: number
+  cover?: string
+}
+
 export async function searchProvider(id: string, keyword: string, page = 1): Promise<SearchPage> {
+  const script = scriptFor(id)
+  if (script?.script_path) {
+    const raw = await callScriptProvider<ScriptTrack[]>(script.script_path, 'search', [keyword, page])
+    const items = (Array.isArray(raw) ? raw : []).map((item) => ({
+      providerId: id,
+      key: String(item.id ?? ''),
+      title: item.title ?? '未知标题',
+      artist: item.artist ?? '未知艺术家',
+      album: item.album ?? null,
+      durationMs: item.duration ?? null,
+      coverUrl: item.cover ?? null
+    }))
+    return { items, total: items.length, hasMore: false }
+  }
+
   const provider = getProvider(id)
   try {
     const result = await provider.search(keyword, page)
@@ -90,6 +200,17 @@ export async function searchProvider(id: string, keyword: string, page = 1): Pro
 }
 
 export async function streamProvider(id: string, key: string): Promise<StreamSource | null> {
+  const script = scriptFor(id)
+  if (script?.script_path) {
+    try {
+      const raw = await callScriptProvider<{ url?: string } | null>(script.script_path, 'getMediaSource', [{ id: key }])
+      if (!raw?.url) return null
+      return { url: raw.url, mime: null, expiresAt: null }
+    } catch {
+      return null
+    }
+  }
+
   const provider = getProvider(id)
   try {
     return await provider.stream(key)
@@ -100,6 +221,21 @@ export async function streamProvider(id: string, key: string): Promise<StreamSou
 }
 
 export async function lyricProvider(id: string, key: string): Promise<LyricResult> {
+  const script = scriptFor(id)
+  if (script?.script_path) {
+    try {
+      const raw = await callScriptProvider<{ lrc?: string } | string | null>(
+        script.script_path,
+        'getLyric',
+        [{ id: key }]
+      )
+      const lrc = typeof raw === 'string' ? raw : (raw?.lrc ?? null)
+      return { lrc: lrc?.trim() || null, translated: null }
+    } catch {
+      return { lrc: null, translated: null }
+    }
+  }
+
   const provider = getProvider(id)
   try {
     return await provider.lyric(key)

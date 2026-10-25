@@ -24,6 +24,7 @@ interface Props {
   /** 允许拖拽：可拖到侧边栏歌单，同列表内可排序 */
   draggable?: boolean
   onReorder?: (fromIndex: number, toIndex: number) => void
+  onToggleFavorite?: (track: Track) => void
   emptyHint?: string
 }
 
@@ -50,7 +51,8 @@ export function TrackTable(props: Props): JSX.Element {
     onPlay,
     onLoadMore,
     draggable = false,
-    onReorder
+    onReorder,
+    onToggleFavorite
   } = props
 
   const virtual = useVirtualRows({ rowHeight: ROW_HEIGHT, total: tracks.length })
@@ -179,7 +181,21 @@ export function TrackTable(props: Props): JSX.Element {
                     {new Date(track.createdAt).toLocaleDateString('zh-CN')}
                   </span>
                   <span className="flex w-8 shrink-0 items-center justify-center">
-                    {track.favorite ? <Heart size={12} className="fill-brand-400 text-brand-400" /> : null}
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onToggleFavorite?.(track)
+                      }}
+                      className={[
+                        "rounded p-1 transition-colors hover:bg-white/10",
+                        track.favorite
+                          ? 'text-brand-400'
+                          : 'text-ink-600 opacity-0 group-hover:opacity-100 hover:text-brand-300'
+                      ].join(' ')}
+                      title={track.favorite ? '取消喜欢' : '加入我喜欢的音乐'}
+                    >
+                      <Heart size={13} className={track.favorite ? "fill-brand-400" : ""} />
+                    </button>
                   </span>
                 </div>
               )

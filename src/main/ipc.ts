@@ -26,6 +26,8 @@ import {
 import { enrichMissingCovers } from './providers/cover-enrich'
 import {
   downloadRemoteTrack,
+  importScriptProvider,
+  removeScriptProvider,
   listProviders,
   lyricProvider,
   onlineLyric,
@@ -107,6 +109,25 @@ export function registerIpc(): void {
   })
   ipcMain.handle('playlists:reorder', (_event, id: string, orderedTrackIds: string[]) => {
     reorderPlaylist(id, orderedTrackIds)
+  })
+
+  ipcMain.handle('providers:import-script', async (_event, filePath?: string) => {
+    let target = filePath
+    if (!target) {
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+      const picked = await dialog.showOpenDialog(win, {
+        title: '选择音源脚本',
+        properties: ['openFile'],
+        filters: [{ name: '音源脚本', extensions: ['js'] }]
+      })
+      if (picked.canceled || picked.filePaths.length === 0) return null
+      target = picked.filePaths[0]
+    }
+    return importScriptProvider(target)
+  })
+
+  ipcMain.handle('providers:remove-script', (_event, id: string) => {
+    removeScriptProvider(id)
   })
 
   ipcMain.handle('providers:list', () => listProviders())

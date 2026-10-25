@@ -56,4 +56,7 @@ export interface ProviderApi {
   onlineLyric(title: string, artist: string | null): Promise<LyricResult>
   download(providerId: string, key: string, title: string, artist: string): Promise<DownloadResult>
   onDownloadProgress(listener: (payload: { key: string; received: number; total: number }) => void): () => void
+  /** 导入音源脚本（不传路径则弹出文件选择） */
+  importScript(path?: string): Promise<ProviderInfo | null>
+  removeScript(id: string): Promise<void>
 }

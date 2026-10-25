@@ -311,6 +311,7 @@ export function PlaylistView({ playlistId }: Props): JSX.Element {
           onKeyDown={() => {}}
           onPlay={(index) => playQueue(items, index)}
           onLoadMore={() => {}}
+          onToggleFavorite={(track) => void applyMenu({ action: track.favorite ? 'unfavorite' : 'favorite', ids: [track.id] })}
           draggable={!isSystem}
           onReorder={(from, to) => void handleReorder(from, to)}
         />

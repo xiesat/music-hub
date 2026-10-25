@@ -110,6 +110,18 @@ export function LibraryView(): JSX.Element {
     setMessage(result.error ?? null)
   }
 
+  const toggleFavorite = useCallback(
+    async (track: Track): Promise<void> => {
+      const next = !track.favorite
+      await window.api.library.setFavorite([track.id], next)
+      setItems((previous) =>
+        previous.map((item) => (item.id === track.id ? { ...item, favorite: next } : item))
+      )
+      void refreshPlaylists()
+    },
+    [refreshPlaylists]
+  )
+
   const fillCovers = async (): Promise<void> => {
     setMessage('正在在线补全封面…')
     try {
@@ -351,10 +363,10 @@ export function LibraryView(): JSX.Element {
           <button
             onClick={() => void fillCovers()}
             className="flex h-9 items-center gap-2 rounded-lg border border-white/8 px-3 text-[12px] text-ink-200 transition-colors hover:bg-white/5"
-            title="为没有封面的本地曲目在线补一张"
+            title="为缺失封面 / 歌手 / 专辑的曲目在线补全"
           >
             <ImageDown size={14} />
-            补全封面
+            补全信息
           </button>
           <button
             onClick={() => void rescan()}
@@ -453,6 +465,7 @@ export function LibraryView(): JSX.Element {
           onKeyDown={handleKeyDown}
           onPlay={(index) => playQueue(items, index)}
           onLoadMore={() => void loadMore()}
+          onToggleFavorite={(track) => void toggleFavorite(track)}
           draggable
         />
       )}

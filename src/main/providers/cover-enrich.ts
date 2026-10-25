@@ -12,6 +12,7 @@ interface MissingRow {
   title: string
   artist: string | null
   album: string | null
+  cover_path: string | null
 }
 
 function coverDir(): string {
@@ -47,6 +48,34 @@ function existingAlbumCover(album: string): string | null {
   return fs.existsSync(row.cover_path) ? row.cover_path : null
 }
 
+/** 只补缺失字段，不覆盖用户已有标签 */
+function assignMeta(
+  track: MissingRow,
+  coverPath: string | null,
+  artist: string | null,
+  album: string | null
+): void {
+  const db = getDb()
+  const sets: string[] = ['updated_at = ?']
+  const params: unknown[] = [Date.now()]
+
+  if (coverPath) {
+    sets.push('cover_path = ?')
+    params.push(coverPath)
+  }
+  if (!track.artist && artist) {
+    sets.push('artist = ?')
+    params.push(artist)
+  }
+  if ((!track.album || track.album === '未知专辑') && album && album !== '未知专辑') {
+    sets.push('album = ?')
+    params.push(album)
+  }
+
+  params.push(track.id)
+  db.prepare('UPDATE tracks SET ' + sets.join(', ') + ' WHERE id = ?').run(...params)
+}
+
 function assignCover(track: MissingRow, coverPath: string): void {
   const db = getDb()
   if (track.album) {
@@ -74,7 +103,9 @@ export async function enrichMissingCovers(
   const db = getDb()
   const rows = db
     .prepare(
-      "SELECT id, title, artist, album FROM tracks WHERE kind = 'local' AND cover_path IS NULL" +
+      "SELECT id, title, artist, album, cover_path FROM tracks WHERE kind = 'local'" +
+        " AND (cover_path IS NULL OR artist IS NULL OR artist = ''" +
+        " OR album IS NULL OR album = '' OR album = '未知专辑')" +
         ' ORDER BY created_at ASC LIMIT ?'
     )
     .all(limit) as MissingRow[]
@@ -83,7 +114,7 @@ export async function enrichMissingCovers(
   for (const row of rows) {
     if (row.album) {
       const cached = existingAlbumCover(row.album)
-      if (cached) {
+      if (cached && !row.cover_path) {
         assignCover(row, cached)
         filled += 1
         continue
@@ -97,12 +128,23 @@ export async function enrichMissingCovers(
       const best =
         page.items.find((item) => item.title.replace(/\s+/g, '').toLowerCase() === normalized) ??
         page.items[0]
-      const coverUrl = best?.coverUrl
-      if (!coverUrl) continue
+      if (!best) continue
 
-      const coverPath = await downloadCover(coverUrl, row.album || row.title)
-      if (!coverPath) continue
-      assignCover(row, coverPath)
+      const coverPath = row.cover_path
+        ? row.cover_path
+        : best.coverUrl
+          ? await downloadCover(best.coverUrl, row.album || row.title)
+          : null
+
+      const nextArtist = row.artist || best.artist || null
+      const nextAlbum = row.album && row.album !== '未知专辑' ? row.album : (best.album ?? null)
+
+      const changed = Boolean(coverPath && coverPath !== row.cover_path)
+      const metaChanged =
+        (!row.artist && nextArtist) || ((!row.album || row.album === '未知专辑') && nextAlbum)
+      if (!changed && !metaChanged) continue
+
+      assignMeta(row, changed ? coverPath : null, nextArtist, nextAlbum)
       filled += 1
     } catch {
       /* 单曲失败不影响其它曲目 */

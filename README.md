@@ -25,11 +25,27 @@
 - 播放器：队列、上一首/下一首、进度拖拽、音量、顺序/循环/单曲/随机
 - `media://` 自定义协议：支持 HTTP Range（可拖动进度）、CORS、媒体元素直连
 
+## 脚本音源沙箱（M4）
+
+- 脚本在 **worker_threads** 中运行，代码经 `vm.createContext` 隔离：没有 `require` / `fs` / `process`
+- 只暴露 `fetch`（仅 http/https，拦截 localhost 与内网段）、`URL`、`setTimeout`、`btoa/atob`、`console`
+- 单次调用 12 秒超时即**杀掉该音源进程**，不会拖死主进程；脚本崩溃只影响它自己
+- 脚本接口（MusicFree 风格）：
+  ```js
+  module.exports = {
+    platform: '我的音源',
+    async search(query, page) { /* -> [{ id, title, artist, album, duration, cover }] */ },
+    async getMediaSource(track) { /* -> { url } | null */ },
+    async getLyric(track) { /* -> { lrc } | string */ }
+  }
+  ```
+- 示例脚本：`resources/example-provider.js`，在「音源插件」页点「导入音源脚本」即可加载
+
 ## 搜索与封面
 
 - **多字段模糊搜索**：标题 / 艺人 / 专辑 / **歌词**，空格分词（词元之间 AND，字段之间 OR）
   - 「月夕江」→ 命中歌词含该词的歌；「国风堂 知我」→ 两个词都命中才返回
-- **封面在线补全**：本地无内嵌封面时，按 标题+艺人 去音源找图，下载到 `userData/covers` 并写回库
+- **信息在线补全**：本地缺封面 / 缺歌手 / 缺专辑时，按 标题(+艺人) 去音源补，封面下载到 `userData/covers` 并写回库
   - 同一专辑只请求一次，其余曲目直接复用
   - 扫描完成后自动补一批（15 首），也可手动点「补全封面」（一次 30 首）
 
@@ -133,6 +149,6 @@ pnpm smoke        # 冒烟测试：跑通 IPC + DB 后自动退出
 - [x] M1 本地曲库：目录扫描、标签解析、虚拟滚动列表、播放器内核、media:// 音频协议
 - [x] M2 歌单 CRUD、播放队列、拖拽入歌单
 - [x] M3 首个音源接入（网易云：搜索 / 试听 / 下载 / 歌词 / 在线歌词兜底）
-- [ ] M4 脚本音源沙箱（LX / MusicFree 插件）
+- [x] M4 脚本音源沙箱（worker + 受限 vm，支持导入自定义音源脚本）
 - [ ] M5 多音源互备、桌面歌词、自动更新
 - [ ] M5 桌面歌词、系统媒体控制、自动更新
