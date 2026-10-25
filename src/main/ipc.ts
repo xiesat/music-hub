@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { AppInfo, TrackMenuPayload } from '@shared/types'
 import { getDbStats } from './db'
@@ -26,6 +27,8 @@ import {
 } from './playlists'
 import {
   cancelDownload,
+  getDownloadDir,
+  setDownloadDir,
   clearFinished,
   enqueueDownload,
   listDownloads,
@@ -101,6 +104,28 @@ export function registerIpc(): void {
   ipcMain.handle('downloads:clear', () => {
     clearFinished()
   })
+  ipcMain.handle('downloads:dir', () => getDownloadDir())
+  ipcMain.handle('downloads:pick-dir', async () => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    const result = await dialog.showOpenDialog(win, {
+      title: '选择下载目录',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (result.canceled || result.filePaths.length === 0) return getDownloadDir()
+    return setDownloadDir(result.filePaths[0])
+  })
+  ipcMain.handle('downloads:set-dir', (_event, path: string) => {
+    const target = String(path ?? '').trim()
+    if (!target) throw new Error('目录不能为空')
+    fs.mkdirSync(target, { recursive: true })
+    return setDownloadDir(target)
+  })
+
+  ipcMain.handle('downloads:reset-dir', () => setDownloadDir(''))
+  ipcMain.handle('downloads:open-dir', async () => {
+    await shell.openPath(getDownloadDir())
+  })
+
   ipcMain.handle('downloads:reveal', (_event, id: string) => {
     revealDownload(id)
   })

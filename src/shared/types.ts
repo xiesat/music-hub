@@ -233,6 +233,11 @@ export interface DownloadsApi {
   clear(): Promise<void>
   reveal(id: string): Promise<void>
   onProgress(listener: (task: DownloadTask) => void): () => void
+  dir(): Promise<string>
+  pickDir(): Promise<string>
+  setDir(path: string): Promise<string>
+  resetDir(): Promise<string>
+  openDir(): Promise<void>
 }
 
 export interface IpcApi {

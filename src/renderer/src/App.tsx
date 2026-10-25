@@ -7,6 +7,7 @@ import { LyricsView } from './components/LyricsView'
 import { DiscoverView } from './components/DiscoverView'
 import { DownloadRiskDialog } from './components/DownloadRiskDialog'
 import { DownloadsView } from './components/DownloadsView'
+import { SettingsView } from './components/SettingsView'
 import { ImportPlaylistDialog } from './components/ImportPlaylistDialog'
 import { PlaylistView } from './components/PlaylistView'
 import { ProvidersView } from './components/ProvidersView'
@@ -97,6 +98,8 @@ export default function App(): JSX.Element {
             <DiscoverView />
           ) : view === 'downloads' ? (
             <DownloadsView />
+          ) : view === 'settings' ? (
+            <SettingsView />
           ) : view === 'providers' ? (
             <ProvidersView />
           ) : (

@@ -6,7 +6,7 @@ import { getDb } from './db'
 import { ingestFile } from './library/scanner'
 import { httpRequest } from './providers/http'
 import { streamProvider } from './providers'
-import { getSetting } from './settings'
+import { getSetting, setSetting } from './settings'
 
 export type DownloadStatus = 'queued' | 'running' | 'done' | 'failed' | 'canceled'
 
@@ -192,9 +192,29 @@ export function retryDownload(id: string): void {
 }
 
 export function clearFinished(): void {
+  const finished: string[] = []
   for (const [id, task] of tasks) {
-    if (task.status === 'done' || task.status === 'failed' || task.status === 'canceled') tasks.delete(id)
+    if (task.status === 'done' || task.status === 'failed' || task.status === 'canceled') {
+      tasks.delete(id)
+      finished.push(id)
+    }
   }
+  // 数据库里的历史记录也要删，否则列表马上又会把它们读回来
+  try {
+    const statement = getDb().prepare('DELETE FROM downloads WHERE id = ?')
+    for (const id of finished) statement.run(id)
+    // 兜底：清掉所有已结束状态的历史（含内存里没有的旧记录）
+    getDb()
+      .prepare("DELETE FROM downloads WHERE status IN ('done', 'failed', 'canceled')")
+      .run()
+  } catch {
+    /* 忽略 */
+  }
+}
+
+export function setDownloadDir(dir: string): string {
+  setSetting('download.dir', dir)
+  return getDownloadDir()
 }
 
 export function revealDownload(id: string): void {

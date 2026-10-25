@@ -100,6 +100,11 @@ const downloads = {
   retry: (id: string): Promise<void> => ipcRenderer.invoke('downloads:retry', id),
   clear: (): Promise<void> => ipcRenderer.invoke('downloads:clear'),
   reveal: (id: string): Promise<void> => ipcRenderer.invoke('downloads:reveal', id),
+  dir: (): Promise<string> => ipcRenderer.invoke('downloads:dir'),
+  pickDir: (): Promise<string> => ipcRenderer.invoke('downloads:pick-dir'),
+  setDir: (path: string): Promise<string> => ipcRenderer.invoke('downloads:set-dir', path),
+  resetDir: (): Promise<string> => ipcRenderer.invoke('downloads:reset-dir'),
+  openDir: (): Promise<void> => ipcRenderer.invoke('downloads:open-dir'),
   onProgress: (listener: (task: unknown) => void) => {
     const handler = (_event: unknown, task: unknown): void => listener(task)
     ipcRenderer.on('downloads:progress', handler)
