@@ -58,7 +58,7 @@ interface ScriptRow {
   last_error: string | null
 }
 
-function authFor(providerId: string): ProviderAuthInput | undefined {
+export function getProviderAuthInput(providerId: string): ProviderAuthInput | undefined {
   const credential = loadCredential(providerId)
   if (!credential) return undefined
   return { cookies: credential.cookies, uid: credential.uid, nickname: credential.nickname }
@@ -80,7 +80,7 @@ export async function getProviderAuthState(id: string): Promise<ProviderAuthStat
 
   // 脚本还没加载过时先加载一次，否则拿不到它声明的登录配置
   if (row?.script_path && !getScriptMeta(row.script_path)) {
-    await callScriptProvider(row.script_path, 'search', [''], 8000, authFor(id)).catch(() => undefined)
+    await callScriptProvider(row.script_path, 'search', [''], 8000, getProviderAuthInput(id)).catch(() => undefined)
   }
   const meta = row?.script_path ? getScriptMeta(row.script_path) : null
   return {
@@ -235,7 +235,7 @@ export async function loginScriptProvider(id: string): Promise<{ ok: boolean; er
       'me',
       [],
       15_000,
-      authFor(id)
+      getProviderAuthInput(id)
     )
     if (profile) {
       await updateCredentialProfile(id, { uid: profile.uid, nickname: profile.nickname })
@@ -315,7 +315,7 @@ export async function searchProvider(id: string, keyword: string, page = 1): Pro
       'search',
       [keyword, page],
       15_000,
-      authFor(id)
+      getProviderAuthInput(id)
     )
     const items = (Array.isArray(raw) ? raw : []).map((item) => ({
       providerId: id,
@@ -404,7 +404,7 @@ export async function streamProvider(
         'getMediaSource',
         [{ id: key }],
         20_000,
-        authFor(id)
+        getProviderAuthInput(id)
       )
       if (!raw?.url) return null
       return { url: raw.url, mime: null, expiresAt: null }
@@ -449,7 +449,7 @@ export async function lyricProvider(id: string, key: string): Promise<LyricResul
         'getLyric',
         [{ id: key }],
         15_000,
-        authFor(id)
+        getProviderAuthInput(id)
       )
       const lrc = typeof raw === 'string' ? raw : (raw?.lrc ?? null)
       return { lrc: lrc?.trim() || null, translated: null }

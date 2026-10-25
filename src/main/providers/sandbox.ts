@@ -270,6 +270,8 @@ interface PendingCall {
 interface WorkerEntry {
   worker: Worker
   meta: ScriptMeta
+  /** 创建该 worker 时的凭据指纹：凭据变了必须重建，否则脚本读到的是旧登录态 */
+  authKey: string
 }
 
 export interface ProviderAuthInput {
@@ -282,7 +284,12 @@ const workers = new Map<string, WorkerEntry>()
 const pending = new Map<number, PendingCall>()
 let nextCallId = 1
 
-function createWorker(scriptPath: string, auth?: ProviderAuthInput): Promise<ScriptMeta> {
+function authKeyOf(auth?: ProviderAuthInput): string {
+  if (!auth) return 'none'
+  return (auth.uid ?? '') + '|' + (auth.cookies?.length ?? 0)
+}
+
+async function createWorker(scriptPath: string, auth?: ProviderAuthInput): Promise<ScriptMeta> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(WORKER_BOOTSTRAP, {
       eval: true,
@@ -308,7 +315,7 @@ function createWorker(scriptPath: string, auth?: ProviderAuthInput): Promise<Scr
         capabilities: message.capabilities ?? [],
         login: message.login ?? null
       }
-      workers.set(scriptPath, { worker, meta })
+      workers.set(scriptPath, { worker, meta, authKey: authKeyOf(auth) })
       resolve(meta)
     })
 
@@ -349,8 +356,13 @@ function createWorker(scriptPath: string, auth?: ProviderAuthInput): Promise<Scr
 }
 
 async function getWorker(scriptPath: string, auth?: ProviderAuthInput): Promise<WorkerEntry> {
+  const wanted = authKeyOf(auth)
   const existing = workers.get(scriptPath)
-  if (existing) return existing
+  if (existing) {
+    if (existing.authKey === wanted) return existing
+    // 凭据变化（登录/登出）→ 重启脚本，让 ctx.auth 反映最新状态
+    disposeScriptProvider(scriptPath)
+  }
   await createWorker(scriptPath, auth)
   const entry = workers.get(scriptPath)
   if (!entry) throw new Error('音源脚本启动失败')

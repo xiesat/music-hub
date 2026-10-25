@@ -31,6 +31,16 @@ export interface ProviderCredential {
   savedAt: number
 }
 
+/**
+ * 判断凭据是否满足要求。
+ * 规格里 `a|b|c` 表示「任一存在即可」，用于不同版本/入口写入不同 cookie 名的情况。
+ */
+function satisfies(cookies: StoredCookie[], spec: string[]): boolean {
+  if (spec.length === 0) return false
+  const names = new Set(cookies.map((item) => item.name))
+  return spec.every((entry) => entry.split('|').some((name) => names.has(name)))
+}
+
 function partitionOf(providerId: string): string {
   return 'persist:provider-' + providerId.replace(/[^a-z0-9_-]/gi, '_')
 }
@@ -94,7 +104,14 @@ export function clearCredential(providerId: string): void {
  * 打开官方登录窗口，轮询 cookie，成功后保存凭据并关闭窗口。
  * 用户关窗口 / 超时 → 视为取消。
  */
-export function loginProvider(request: LoginRequest): Promise<LoginResult> {
+export async function loginProvider(request: LoginRequest): Promise<LoginResult> {
+  // 已经登录过（session 里 cookie 还在）就直接保存，不再弹窗
+  const existing = await readCookies(request.providerId)
+  if (satisfies(existing, request.cookies)) {
+    saveCredential(request.providerId, { cookies: existing, savedAt: Date.now() })
+    return { ok: true }
+  }
+
   return new Promise((resolve) => {
     const partition = partitionOf(request.providerId)
 
@@ -117,12 +134,20 @@ export function loginProvider(request: LoginRequest): Promise<LoginResult> {
       resolve(result)
     }
 
+    let polls = 0
+
     const check = async (): Promise<void> => {
       try {
+        polls += 1
         const cookies = await readCookies(request.providerId)
-        const names = new Set(cookies.map((item) => item.name))
-        const allPresent = request.cookies.every((name) => names.has(name))
-        if (!allPresent) return
+        if (!satisfies(cookies, request.cookies)) {
+          // 每 5 次轮询打一次实际 cookie 名，方便排查「为什么判定不成功」
+          if (polls % 5 === 0) {
+            const names = cookies.map((item) => item.name).sort().join(',')
+            console.log('[auth]', request.providerId, '等待', request.cookies.join('+'), '现有:', names || '(空)')
+          }
+          return
+        }
 
         saveCredential(request.providerId, { cookies, savedAt: Date.now() })
         finish({ ok: true })

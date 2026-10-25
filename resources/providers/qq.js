@@ -2,6 +2,24 @@
 // 登录后可读私人歌单；会员账号能拿到 vkey → 可播放
 var UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
+// QQ 网页接口用 g_tk 做签名：hash33(key)，key 是登录后的 qqmusic_key / qm_keyst / skey
+function hash33(value) {
+  var hash = 5381
+  for (var i = 0; i < value.length; i++) {
+    hash += (hash << 5) + value.charCodeAt(i)
+  }
+  return hash & 0x7fffffff
+}
+
+function gtk(ctx) {
+  var key =
+    ctx.auth.get('qqmusic_key') ||
+    ctx.auth.get('qm_keyst') ||
+    ctx.auth.get('skey') ||
+    ctx.auth.get('p_skey')
+  return key ? hash33(String(key)) : 5381
+}
+
 async function search() {
   throw new Error('QQ 音乐搜索需要签名，暂未支持；可用「全部音源」搜索其它平台')
 }
@@ -11,10 +29,11 @@ module.exports = {
   platform: { id: 'qq', name: 'QQ 音乐' },
   capabilities: ['playlist', 'stream', 'auth'],
 
+  // QQ 音乐网页版登录后写的是 uin + qqmusic_key（部分入口是 qm_keyst），没有 skey
   login: {
     type: 'webview',
     url: 'https://y.qq.com/',
-    cookies: ['uin', 'skey'],
+    cookies: ['uin', 'qqmusic_key|qm_keyst'],
     warmup: 'https://y.qq.com/n/ryqq/profile'
   },
 
@@ -77,10 +96,29 @@ module.exports = {
     if (!target) throw ctx.error('NEED_LOGIN', '请先登录 QQ 音乐')
     const json = await ctx.get(
       'https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss',
-      { hostuin: target, format: 'json', inCharset: 'utf8', outCharset: 'utf-8' },
+      {
+        hostuin: target,
+        hostUin: 0,
+        loginUin: target,
+        uin: target,
+        g_tk: gtk(ctx),
+        platform: 'yqq',
+        needNewCode: 0,
+        notice: 0,
+        picmid: 1,
+        sin: 0,
+        size: 30,
+        offset: 0,
+        r: 0,
+        format: 'json',
+        inCharset: 'utf8',
+        outCharset: 'utf-8'
+      },
       { referer: 'https://y.qq.com/' }
     )
+
     const list = (json.data && json.data.disslist) || []
+    // 只有带 dissid 的才是可导入的自建歌单；dirid 是系统歌单（我喜欢/私人音乐），无法取歌
     return list
       .map(function (item) {
         return {
@@ -96,7 +134,16 @@ module.exports = {
   async getPlaylistTracks(ctx, id) {
     const json = await ctx.get(
       'https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg',
-      { type: 1, json: 1, utf8: 1, onlysong: 0, new_format: 1, disstid: id, format: 'json' },
+      {
+        type: 1,
+        json: 1,
+        utf8: 1,
+        onlysong: 0,
+        new_format: 1,
+        disstid: id,
+        g_tk: gtk(ctx),
+        format: 'json'
+      },
       { referer: 'https://y.qq.com/' }
     )
     const cd = json.cdlist && json.cdlist[0]

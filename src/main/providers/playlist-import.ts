@@ -3,7 +3,7 @@ import type { RemoteTrackInput } from '../library/repository'
 import { upsertRemoteTracks } from '../library/repository'
 import { addTracksToPlaylist, createPlaylist } from '../playlists'
 import { getDb } from '../db'
-import { listProviders } from './index'
+import { getProviderAuthInput, listProviders } from './index'
 import { callScriptProvider } from './sandbox'
 
 export type Platform = 'netease' | 'qq'
@@ -63,8 +63,14 @@ export async function listPlatformPlaylists(
   platform: Platform,
   uid: string
 ): Promise<PlatformPlaylist[]> {
-  const { scriptPath } = resolveScript(platform)
-  const raw = await callScriptProvider<ScriptPlaylist[]>(scriptPath, 'getUserPlaylists', [uid], 20_000)
+  const { providerId, scriptPath } = resolveScript(platform)
+  const raw = await callScriptProvider<ScriptPlaylist[]>(
+    scriptPath,
+    'getUserPlaylists',
+    [uid],
+    20_000,
+    getProviderAuthInput(providerId)
+  )
   if (!Array.isArray(raw)) throw new Error('音源脚本未实现「查询用户歌单」')
 
   return raw.map((item) => ({
@@ -85,7 +91,8 @@ export async function importPlatformPlaylist(
     scriptPath,
     'getPlaylistTracks',
     [id],
-    30_000
+    30_000,
+    getProviderAuthInput(providerId)
   )
   if (!detail?.tracks?.length) throw new Error('这个歌单里没有可导入的曲目')
 

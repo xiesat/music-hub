@@ -55,7 +55,13 @@ export function ImportPlaylistDialog({ onImported }: Props): JSX.Element | null 
     try {
       const list = await window.api.playlists.listPlatform(platform, value)
       setItems(list)
-      if (list.length === 0) setMessage('没查到公开歌单，可改用歌单 ID 直接导入')
+      if (list.length === 0) {
+        setMessage(
+          platform === 'qq'
+            ? '没有查到自建歌单（QQ 的「我喜欢」「私人音乐」属于系统歌单，无法导入）；可把歌单分享链接里的 disstid 填进来'
+            : '没查到公开歌单，可改用歌单 ID 直接导入'
+        )
+      }
     } catch (err) {
       setError(cleanError((err as Error).message))
       setItems([])

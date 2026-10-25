@@ -17,6 +17,7 @@ module.exports = {
     type: 'webview',
     url: 'https://music.163.com/#/login',
     cookies: ['MUSIC_U'],
+    // 注：网易云网页登录只写 MUSIC_U（HttpOnly）
     warmup: 'https://music.163.com/#/my/'
   },
 
