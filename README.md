@@ -152,7 +152,7 @@ module.exports = {
     async getLyric(track) { /* -> { lrc } | string */ }
   }
   ```
-- 示例脚本：`resources/example-provider.js`，在「音源插件」页点「导入音源脚本」即可加载
+- 示例脚本：插件仓库的 `templates/example-provider.js`，在「音源插件」页点「导入音源脚本」即可加载
 
 ## 搜索与封面
 
