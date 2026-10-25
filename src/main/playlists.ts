@@ -119,7 +119,7 @@ export function listPlaylistTracks(
 
   const rows = db
     .prepare(
-      'SELECT t.id, t.title, t.artist, t.album, t.duration_ms, t.format, t.bitrate, t.size,' +
+      'SELECT t.id, t.kind, t.provider, t.provider_key, t.cover_url, t.title, t.artist, t.album, t.duration_ms, t.format, t.bitrate, t.size,' +
         ' t.path, t.cover_path, t.favorite, t.play_count, t.created_at' +
         ' FROM playlist_items pi JOIN tracks t ON t.id = pi.track_id' +
         ' WHERE pi.playlist_id = @id' +
@@ -149,6 +149,9 @@ export function listPlaylistTracks(
     size: (row.size as number | null) ?? null,
     path: (row.path as string | null) ?? null,
     coverPath: (row.cover_path as string | null) ?? null,
+    coverUrl: (row.cover_url as string | null) ?? undefined,
+    providerId: (row.provider as string | null) ?? undefined,
+    providerKey: (row.provider_key as string | null) ?? undefined,
     favorite: row.favorite === 1,
     playCount: (row.play_count as number) ?? 0,
     createdAt: (row.created_at as number) ?? 0

@@ -147,6 +147,32 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const track = get().queue[index]
     if (!track) return
     set({ index, positionMs: startAt, durationMs: track.durationMs ?? 0, error: null })
+
+    // 平台歌单导入的曲目没有流地址，播放时再向音源要
+    if (!track.streamUrl && track.id.startsWith('remote:')) {
+      const providerId = track.providerId
+      const providerKey = track.providerKey
+      if (!providerId || !providerKey) {
+        set({ error: '该曲目缺少音源信息，无法播放' })
+        return
+      }
+      void window.api.providers
+        .stream(providerId, providerKey)
+        .then((source) => {
+          if (!source) {
+            set({ error: '这首拿不到播放地址（可能需要会员或已下架）' })
+            return
+          }
+          const resolved = { ...track, streamUrl: source.url }
+          const queue = get().queue.slice()
+          queue[index] = resolved
+          set({ queue })
+          loadAndPlay(resolved, startAt)
+        })
+        .catch((error: Error) => set({ error: error.message }))
+      return
+    }
+
     loadAndPlay(track, startAt)
   },
 

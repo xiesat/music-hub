@@ -105,5 +105,10 @@ export const migrations: string[] = [
   `
   -- v4: 记录侧车歌词文件时间，用于判断歌词是否需要重解析
   ALTER TABLE tracks ADD COLUMN lyric_mtime INTEGER;
+  `,
+
+  `
+  -- v5: 远程曲目（平台歌单导入）封面外链
+  ALTER TABLE tracks ADD COLUMN cover_url TEXT;
   `
 ]

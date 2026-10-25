@@ -241,6 +241,33 @@ export function getTrackById(id: string): { id: string; path: string; coverPath:
   return { id: row.id, path: row.path, coverPath: row.cover_path }
 }
 
+export interface RemoteTrackInput {
+  id: string
+  provider: string
+  providerKey: string
+  title: string
+  artist: string | null
+  album: string | null
+  durationMs: number | null
+  coverUrl: string | null
+}
+
+/** 平台歌单导入的曲目：只写元数据，播放时再向音源要流地址 */
+export function upsertRemoteTracks(items: RemoteTrackInput[]): number {
+  if (items.length === 0) return 0
+  const db = getDb()
+  const statement = db.prepare(
+    'INSERT OR IGNORE INTO tracks (id, kind, title, artist, album, duration_ms, provider, provider_key, cover_url, created_at, updated_at)' +
+      ' VALUES (@id, \'remote\', @title, @artist, @album, @durationMs, @provider, @providerKey, @coverUrl, @now, @now)'
+  )
+  const now = Date.now()
+  let inserted = 0
+  db.transaction((batch: RemoteTrackInput[]) => {
+    for (const item of batch) inserted += statement.run({ ...item, now }).changes
+  })(items)
+  return inserted
+}
+
 export function getTrackLyric(id: string): { lrc: string | null; title: string } | null {
   const row = getDb().prepare('SELECT title, lyric FROM tracks WHERE id = ?').get(id) as
     | { title: string; lyric: string | null }

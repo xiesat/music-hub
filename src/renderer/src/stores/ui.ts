@@ -8,6 +8,9 @@ interface UiState {
   queueOpen: boolean
   toggleQueue: () => void
   closeQueue: () => void
+  importOpen: boolean
+  openImport: () => void
+  closeImport: () => void
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -17,5 +20,8 @@ export const useUi = create<UiState>((set) => ({
   closeLyrics: () => set({ lyricsOpen: false }),
   queueOpen: false,
   toggleQueue: () => set((state) => ({ queueOpen: !state.queueOpen })),
-  closeQueue: () => set({ queueOpen: false })
+  closeQueue: () => set({ queueOpen: false }),
+  importOpen: false,
+  openImport: () => set({ importOpen: true }),
+  closeImport: () => set({ importOpen: false })
 }))

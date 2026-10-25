@@ -57,7 +57,9 @@ const playlists: PlaylistApi = {
   removeTracks: (id: string, trackIds: string[]): Promise<void> =>
     ipcRenderer.invoke('playlists:remove-tracks', id, trackIds),
   reorder: (id: string, orderedTrackIds: string[]): Promise<void> =>
-    ipcRenderer.invoke('playlists:reorder', id, orderedTrackIds)
+    ipcRenderer.invoke('playlists:reorder', id, orderedTrackIds),
+  listPlatform: (platform, uid) => ipcRenderer.invoke('playlists:platform-list', platform, uid),
+  importPlatform: (platform, id) => ipcRenderer.invoke('playlists:platform-import', platform, id)
 }
 
 const providers: ProviderApi = {

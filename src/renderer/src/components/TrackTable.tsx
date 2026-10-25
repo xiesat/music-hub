@@ -156,9 +156,13 @@ export function TrackTable(props: Props): JSX.Element {
 
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="h-8 w-8 shrink-0 overflow-hidden rounded bg-ink-700">
-                      {track.coverPath ? (
+                      {track.coverPath || track.coverUrl ? (
                         <img
-                          src={'media://cover/' + encodeURIComponent(track.id)}
+                          src={
+                            track.coverPath
+                              ? 'media://cover/' + encodeURIComponent(track.id)
+                              : (track.coverUrl ?? '')
+                          }
                           alt=""
                           className="h-full w-full object-cover"
                           loading="lazy"

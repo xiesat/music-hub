@@ -157,6 +157,24 @@ export interface PlaylistQuery {
   keyword?: string
 }
 
+export type PlatformId = 'netease' | 'qq'
+
+export interface PlatformPlaylist {
+  id: string
+  name: string
+  trackCount: number
+  coverUrl: string | null
+  platform: PlatformId
+}
+
+export interface PlatformImportResult {
+  playlistId: string
+  name: string
+  imported: number
+  total: number
+  playable: boolean
+}
+
 export interface PlaylistApi {
   list(): Promise<Playlist[]>
   create(name: string): Promise<Playlist>
@@ -166,6 +184,8 @@ export interface PlaylistApi {
   addTracks(id: string, trackIds: string[]): Promise<number>
   removeTracks(id: string, trackIds: string[]): Promise<void>
   reorder(id: string, orderedTrackIds: string[]): Promise<void>
+  listPlatform(platform: PlatformId, uid: string): Promise<PlatformPlaylist[]>
+  importPlatform(platform: PlatformId, id: string): Promise<PlatformImportResult>
 }
 
 export interface IpcApi {

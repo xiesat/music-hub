@@ -1,7 +1,8 @@
 import type { JSX } from 'react'
 import { useEffect, useState } from 'react'
-import { Compass, Download, Heart, Library, ListMusic, Plus, Plug, Settings } from 'lucide-react'
+import { Compass, Download, Heart, Library, ListMusic, Plus, Plug, Settings, SquareArrowDown } from 'lucide-react'
 import { usePlaylists } from '../stores/playlists'
+import { useUi } from '../stores/ui'
 
 export type ViewId = 'discover' | 'library' | 'playlists' | 'downloads' | 'providers' | 'settings'
 
@@ -33,6 +34,7 @@ export function Sidebar({
   const createPlaylist = usePlaylists((state) => state.create)
   const addTracks = usePlaylists((state) => state.addTracks)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const openImport = useUi((state) => state.openImport)
 
   useEffect(() => {
     void refresh()
@@ -79,13 +81,22 @@ export function Sidebar({
 
       <div className="flex items-center justify-between px-4 pb-1 pt-2 text-[11px] text-ink-500">
         <span>歌单</span>
-        <button
-          onClick={() => void handleCreate()}
+        <span className="flex items-center gap-1">
+          <button
+            onClick={openImport}
+            className="text-ink-400 transition-colors hover:text-brand-400"
+            title="导入平台歌单"
+          >
+            <SquareArrowDown size={13} />
+          </button>
+          <button
+            onClick={() => void handleCreate()}
           className="text-ink-400 transition-colors hover:text-brand-400"
-          title="新建歌单"
-        >
-          <Plus size={14} />
-        </button>
+            title="新建歌单"
+          >
+            <Plus size={14} />
+          </button>
+        </span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">

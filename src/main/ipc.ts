@@ -35,6 +35,7 @@ import {
   streamProvider,
   toggleProvider
 } from './providers'
+import { importPlatformPlaylist, listPlatformPlaylists } from './providers/playlist-import'
 import { popupTrackMenu } from './track-menu'
 
 export function registerIpc(): void {
@@ -149,6 +150,14 @@ export function registerIpc(): void {
         event.sender.send('providers:download-progress', { key, received, total })
       })
     }
+  )
+
+  ipcMain.handle('playlists:platform-list', (_event, platform: 'netease' | 'qq', uid: string) =>
+    listPlatformPlaylists(platform, uid)
+  )
+  ipcMain.handle(
+    'playlists:platform-import',
+    (_event, platform: 'netease' | 'qq', id: string) => importPlatformPlaylist(platform, id)
   )
 
   ipcMain.handle('ui:reveal', (_event, path: string) => {
