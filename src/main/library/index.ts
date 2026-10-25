@@ -100,6 +100,14 @@ export async function scanLibrary(): Promise<ScanProgress> {
   }
 }
 
+import { upsertRemoteTracks, setFavorite as setFavoriteRows, type RemoteTrackInput } from './repository'
+
+/** 收藏一首在线曲目：先写入 tracks（kind=remote），再置为喜欢 */
+export function favoriteRemoteTrack(input: RemoteTrackInput): void {
+  upsertRemoteTracks([input])
+  setFavoriteRows([input.id], true)
+}
+
 export {
   deleteTracks,
   getLibraryRoots,

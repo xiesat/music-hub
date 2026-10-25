@@ -5,6 +5,7 @@ import type { AppInfo } from '@shared/types'
 import { LibraryView } from './components/LibraryView'
 import { LyricsView } from './components/LyricsView'
 import { DiscoverView } from './components/DiscoverView'
+import { DownloadsView } from './components/DownloadsView'
 import { ImportPlaylistDialog } from './components/ImportPlaylistDialog'
 import { PlaylistView } from './components/PlaylistView'
 import { ProvidersView } from './components/ProvidersView'
@@ -93,6 +94,8 @@ export default function App(): JSX.Element {
             <LibraryView />
           ) : view === 'discover' ? (
             <DiscoverView />
+          ) : view === 'downloads' ? (
+            <DownloadsView />
           ) : view === 'providers' ? (
             <ProvidersView />
           ) : (

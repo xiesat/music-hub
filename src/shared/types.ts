@@ -119,6 +119,17 @@ export interface LibraryApi {
   setFavorite(ids: string[], favorite: boolean): Promise<void>
   lyric(id: string): Promise<{ lrc: string | null; title: string } | null>
   enrichCovers(limit?: number): Promise<{ checked: number; filled: number }>
+  /** 收藏一首在线曲目（自动落库为远程曲目） */
+  favoriteRemote(track: {
+    id: string
+    provider: string
+    providerKey: string
+    title: string
+    artist: string | null
+    album: string | null
+    durationMs: number | null
+    coverUrl: string | null
+  }): Promise<void>
   onScanProgress(listener: (progress: ScanProgress) => void): () => void
 }
 
@@ -191,6 +202,32 @@ export interface PlaylistApi {
   importPlatform(platform: PlatformId, id: string): Promise<PlatformImportResult>
 }
 
+export type DownloadStatus = 'queued' | 'running' | 'done' | 'failed' | 'canceled'
+
+export interface DownloadTask {
+  id: string
+  title: string
+  artist: string
+  providerId: string
+  providerKey: string
+  status: DownloadStatus
+  received: number
+  total: number
+  filePath: string | null
+  error: string | null
+  createdAt: number
+}
+
+export interface DownloadsApi {
+  list(): Promise<DownloadTask[]>
+  add(input: { title: string; artist: string; providerId: string; providerKey: string }): Promise<DownloadTask>
+  cancel(id: string): Promise<void>
+  retry(id: string): Promise<void>
+  clear(): Promise<void>
+  reveal(id: string): Promise<void>
+  onProgress(listener: (task: DownloadTask) => void): () => void
+}
+
 export interface IpcApi {
   getAppInfo(): Promise<AppInfo>
   getDbStats(): Promise<DbStats>
@@ -199,4 +236,5 @@ export interface IpcApi {
   settings: SettingsApi
   playlists: PlaylistApi
   providers: import('./provider').ProviderApi
+  downloads: DownloadsApi
 }

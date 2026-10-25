@@ -7,6 +7,7 @@ import {
   getLibraryRoots,
   getLibraryStats,
   getTrackById,
+  favoriteRemoteTrack,
   getTrackLyric,
   listTracks,
   scanLibrary,
@@ -23,6 +24,14 @@ import {
   renamePlaylist,
   reorderPlaylist
 } from './playlists'
+import {
+  cancelDownload,
+  clearFinished,
+  enqueueDownload,
+  listDownloads,
+  retryDownload,
+  revealDownload
+} from './downloads'
 import { enrichMissingCovers } from './providers/cover-enrich'
 import {
   downloadRemoteTrack,
@@ -78,9 +87,28 @@ export function registerIpc(): void {
     deleteTracks(ids)
   })
 
+  ipcMain.handle('downloads:list', () => listDownloads())
+  ipcMain.handle('downloads:add', (_event, input) => enqueueDownload(input))
+  ipcMain.handle('downloads:cancel', (_event, id: string) => {
+    cancelDownload(id)
+  })
+  ipcMain.handle('downloads:retry', (_event, id: string) => {
+    retryDownload(id)
+  })
+  ipcMain.handle('downloads:clear', () => {
+    clearFinished()
+  })
+  ipcMain.handle('downloads:reveal', (_event, id: string) => {
+    revealDownload(id)
+  })
+
   ipcMain.handle('library:enrich-covers', (_event, limit?: number) =>
     enrichMissingCovers(limit ?? 30)
   )
+
+  ipcMain.handle('library:favorite-remote', (_event, track) => {
+    favoriteRemoteTrack(track)
+  })
 
   ipcMain.handle('library:lyric', (_event, id: string) => getTrackLyric(id))
 

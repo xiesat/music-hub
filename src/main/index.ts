@@ -2,6 +2,8 @@ import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { closeDb } from './db'
 import { registerIpc } from './ipc'
+import { installBundledScripts } from './providers'
+import { setDownloadSink } from './downloads'
 import { setProgressSink } from './library'
 import { getSetting, setSetting } from './settings'
 import { registerMediaProtocol, registerMediaScheme } from './media-protocol'
@@ -84,6 +86,19 @@ function createWindow(): BrowserWindow {
 void app.whenReady().then(async () => {
   registerIpc()
   registerMediaProtocol()
+
+  // 首次运行安装随包音源脚本（外部接入，不在代码里硬编码平台）
+  const bundledDir = app.isPackaged
+    ? join(process.resourcesPath, 'providers')
+    : join(app.getAppPath(), 'resources', 'providers')
+  void installBundledScripts(bundledDir)
+
+  // 下载进度广播给所有窗口
+  setDownloadSink((task) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('downloads:progress', task)
+    }
+  })
 
   // 扫描进度广播给所有窗口
   setProgressSink((progress) => {

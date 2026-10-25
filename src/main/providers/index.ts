@@ -14,7 +14,6 @@ import { ingestFile } from '../library/scanner'
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { getSetting } from '../settings'
 import { httpRequest } from './http'
-import { neteaseProvider } from './netease'
 import { callScriptProvider, disposeScriptProvider, getScriptPlatform } from './sandbox'
 
 interface BuiltinProvider {
@@ -24,7 +23,7 @@ interface BuiltinProvider {
   lyric(key: string): Promise<LyricResult>
 }
 
-const builtins: BuiltinProvider[] = [neteaseProvider]
+const builtins: BuiltinProvider[] = []
 
 function ensureSeeded(): void {
   const db = getDb()
@@ -118,6 +117,35 @@ export async function importScriptProvider(sourcePath: string): Promise<Provider
   const created = listProviders().find((item) => item.id === id)
   if (!created) throw new Error('音源脚本注册失败')
   return created
+}
+
+/**
+ * 安装随包附带的音源脚本（首次运行或脚本缺失时）。
+ * bundledDir 在开发时是项目的 resources/providers，打包后是 app.getPath('exe') 同级 resources。
+ */
+export async function installBundledScripts(bundledDir: string): Promise<number> {
+  if (!existsSync(bundledDir)) return 0
+  const target = providersDir()
+  let installed = 0
+
+  for (const fileName of fs.readdirSync(bundledDir)) {
+    if (!fileName.endsWith('.js')) continue
+    const source = join(bundledDir, fileName)
+    const dest = join(target, fileName)
+
+    try {
+      // 随包脚本以应用为准：每次都覆盖，保证升级后脚本同步更新
+      const changed = !existsSync(dest) || fs.readFileSync(source, 'utf8') !== fs.readFileSync(dest, 'utf8')
+      if (!changed) continue
+      copyFileSync(source, dest)
+      disposeScriptProvider(dest)
+      await importScriptProvider(dest)
+      installed += 1
+    } catch (error) {
+      console.error('[providers] 安装脚本失败', fileName, (error as Error).message)
+    }
+  }
+  return installed
 }
 
 export function removeScriptProvider(id: string): void {
@@ -321,15 +349,16 @@ export async function lyricProvider(id: string, key: string): Promise<LyricResul
 /** 本地曲目没有歌词时，按 标题 + 艺人 去在线搜一个最像的 */
 export async function onlineLyric(title: string, artist: string | null): Promise<LyricResult> {
   const keyword = [title, artist].filter(Boolean).join(' ')
-  for (const provider of builtins) {
+  const normalizedTitle = title.replace(/\s+/g, '').toLowerCase()
+
+  for (const provider of listProviders().filter((item) => item.enabled)) {
     try {
-      const page = await provider.search(keyword, 1)
-      const normalizedTitle = title.replace(/\s+/g, '').toLowerCase()
+      const page = await searchProvider(provider.id, keyword, 1)
       const best =
         page.items.find((item) => item.title.replace(/\s+/g, '').toLowerCase() === normalizedTitle) ??
         page.items[0]
       if (!best) continue
-      const lyric = await provider.lyric(best.key)
+      const lyric = await lyricProvider(provider.id, best.key)
       if (lyric.lrc) return lyric
     } catch {
       /* 换下一个音源 */

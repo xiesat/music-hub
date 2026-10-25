@@ -16,6 +16,8 @@ export function PlaylistView({ playlistId }: Props): JSX.Element {
   const refreshPlaylists = usePlaylists((state) => state.refresh)
   const renamePlaylist = usePlaylists((state) => state.rename)
   const removePlaylist = usePlaylists((state) => state.remove)
+  const editingId = usePlaylists((state) => state.editingId)
+  const setEditingId = usePlaylists((state) => state.setEditing)
 
   const [items, setItems] = useState<Track[]>([])
   const [total, setTotal] = useState(0)
@@ -50,6 +52,15 @@ export function PlaylistView({ playlistId }: Props): JSX.Element {
     setEditing(false)
     setKeyword('')
   }, [playlistId])
+
+  // 侧边栏点「重命名」进来时直接进入编辑态
+  useEffect(() => {
+    if (editingId && editingId === playlistId && playlist) {
+      setDraftName(playlist.name)
+      setEditing(true)
+      setEditingId(null)
+    }
+  }, [editingId, playlistId, playlist, setEditingId])
 
   const handleSort = (next: TrackSort): void => {
     if (next === sort) setOrder(order === 'asc' ? 'desc' : 'asc')

@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { useEffect, useRef } from 'react'
-import { Download, Loader2, Play, Search } from 'lucide-react'
+import { Download, Heart, Loader2, Play, Search } from 'lucide-react'
 import type { ProviderInfo, RemoteTrack } from '@shared/provider'
 import type { Track } from '@shared/types'
 import { useState } from 'react'
@@ -34,6 +34,7 @@ function toPlayable(track: RemoteTrack, streamUrl?: string): Track {
 export function DiscoverView(): JSX.Element {
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [favorited, setFavorited] = useState<Set<string>>(() => new Set())
 
   const providerId = useDiscover((state) => state.providerId)
   const keyword = useDiscover((state) => state.keyword)
@@ -106,14 +107,46 @@ export function DiscoverView(): JSX.Element {
     }
   }
 
+  const toggleFavorite = async (track: RemoteTrack): Promise<void> => {
+    const id = 'remote:' + track.providerId + ':' + track.key
+    const isFav = favorited.has(id)
+    try {
+      if (isFav) {
+        await window.api.library.setFavorite([id], false)
+      } else {
+        await window.api.library.favoriteRemote({
+          id,
+          provider: track.providerId,
+          providerKey: track.key,
+          title: track.title,
+          artist: track.artist,
+          album: track.album,
+          durationMs: track.durationMs,
+          coverUrl: track.coverUrl
+        })
+      }
+      setFavorited((previous) => {
+        const next = new Set(previous)
+        if (isFav) next.delete(id)
+        else next.add(id)
+        return next
+      })
+    } catch (err) {
+      useDiscover.setState({ error: '收藏失败：' + (err as Error).message })
+    }
+  }
+
   const download = async (track: RemoteTrack): Promise<void> => {
     setBusyKey(track.key)
     useDiscover.setState({ error: null, message: null })
     try {
-      const result = await window.api.providers.download(providerId, track.key, track.title, track.artist)
-      useDiscover.setState({
-        message: '已下载并入库：' + result.filePath + '（' + Math.round(result.bytes / 1024 / 1024) + ' MB）'
+      await window.api.downloads.add({
+        title: track.title,
+        artist: track.artist,
+        providerId: track.providerId,
+        providerKey: track.key
       })
+      useDiscover.setState({ message: '已加入下载队列，可在「下载管理」查看进度' })
     } catch (err) {
       useDiscover.setState({ error: '下载失败：' + (err as Error).message })
     } finally {
@@ -260,6 +293,16 @@ export function DiscoverView(): JSX.Element {
                     title="播放"
                   >
                     <Play size={14} />
+                  </button>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void toggleFavorite(track)
+                    }}
+                    title={favorited.has(id) ? '取消喜欢' : '加入我喜欢的音乐'}
+                    className="rounded p-1.5 text-ink-300 transition-colors hover:bg-white/10 hover:text-brand-300"
+                  >
+                    <Heart size={14} className={favorited.has(id) ? "fill-brand-400 text-brand-400" : ""} />
                   </button>
                   <button
                     onClick={(event) => {

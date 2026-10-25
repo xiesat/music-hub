@@ -12,6 +12,9 @@ interface TrackRow {
   size: number | null
   path: string | null
   cover_path: string | null
+  cover_url?: string | null
+  provider?: string | null
+  provider_key?: string | null
   favorite: number
   play_count: number
   created_at: number
@@ -29,6 +32,9 @@ function toTrack(row: TrackRow): Track {
     size: row.size,
     path: row.path,
     coverPath: row.cover_path,
+    coverUrl: row.cover_url ?? undefined,
+    providerId: row.provider ?? undefined,
+    providerKey: row.provider_key ?? undefined,
     favorite: row.favorite === 1,
     playCount: row.play_count,
     createdAt: row.created_at
@@ -44,7 +50,7 @@ const SORT_COLUMN: Record<TrackSort, string> = {
 }
 
 const SELECT_FIELDS =
-  'id, title, artist, album, duration_ms, format, bitrate, size, path, cover_path, favorite, play_count, created_at'
+  'id, title, artist, album, duration_ms, format, bitrate, size, path, cover_path, cover_url, provider, provider_key, favorite, play_count, created_at'
 
 /**
  * 关键词拆成多个词元：词元之间是 AND，每个词元在 标题/艺人/专辑/歌词 之间是 OR。
@@ -84,8 +90,8 @@ export function buildKeywordFilter(
 
 export function listTracks(query: TrackQuery): TrackPage {
   const db = getDb()
-  const extra = ["kind = 'local'"]
-  if (query.favoriteOnly) extra.push('favorite = 1')
+  // 「我喜欢的音乐」要包含在线曲目，所以收藏视图不再限定 kind = 'local'
+  const extra = query.favoriteOnly ? ['favorite = 1'] : ["kind = 'local'"]
 
   const filter = buildKeywordFilter(query.keyword ?? '', extra)
   const where = filter.where

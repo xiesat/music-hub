@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { useEffect, useState } from 'react'
-import { Compass, Download, Heart, Library, ListMusic, Plus, Plug, Settings, SquareArrowDown } from 'lucide-react'
+import { Compass, Download, Heart, Library, ListMusic, Pencil, Plus, Plug, Settings, SquareArrowDown, Trash2 } from 'lucide-react'
 import { usePlaylists } from '../stores/playlists'
 import { useUi } from '../stores/ui'
 
@@ -35,6 +35,8 @@ export function Sidebar({
   const addTracks = usePlaylists((state) => state.addTracks)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const openImport = useUi((state) => state.openImport)
+  const setEditing = usePlaylists((state) => state.setEditing)
+  const removePlaylist = usePlaylists((state) => state.remove)
 
   useEffect(() => {
     void refresh()
@@ -104,8 +106,8 @@ export function Sidebar({
           const isActive = active === 'playlists' && activePlaylistId === playlist.id
           const isDropTarget = dropTarget === playlist.id
           return (
+            <div key={playlist.id} className="group/pl relative">
             <button
-              key={playlist.id}
               onClick={() => onSelectPlaylist(playlist.id)}
               onDragOver={(event) => {
                 if (!playlist.isSystem) {
@@ -127,8 +129,36 @@ export function Sidebar({
                 <ListMusic size={13} className="shrink-0 opacity-60" />
               )}
               <span className="truncate">{playlist.name}</span>
-              <span className="ml-auto shrink-0 text-[10px] text-ink-500">{playlist.trackCount}</span>
+              <span className="ml-auto shrink-0 text-[10px] text-ink-500 group-hover/pl:hidden">
+                {playlist.trackCount}
+              </span>
             </button>
+            {!playlist.isSystem ? (
+              <span className="absolute right-1 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover/pl:flex">
+                <button
+                  onClick={() => {
+                    setEditing(playlist.id)
+                    onSelectPlaylist(playlist.id)
+                  }}
+                  title="重命名"
+                  className="rounded p-0.5 text-ink-400 transition-colors hover:bg-white/10 hover:text-ink-100"
+                >
+                  <Pencil size={11} />
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm('删除歌单「' + playlist.name + '」？歌曲不会从曲库删除。')) {
+                      void removePlaylist(playlist.id)
+                    }
+                  }}
+                  title="删除"
+                  className="rounded p-0.5 text-ink-400 transition-colors hover:bg-red-500/20 hover:text-red-300"
+                >
+                  <Trash2 size={11} />
+                </button>
+              </span>
+            ) : null}
+            </div>
           )
         })}
         {playlists.length === 0 ? (

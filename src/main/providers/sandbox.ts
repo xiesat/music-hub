@@ -9,6 +9,33 @@ const vm = require('node:vm')
 
 function send(message) { parentPort.postMessage(message) }
 
+// worker 内的简易 cookie 罐（音源脚本需要登录态/游客态时用）
+const cookieJar = new Map()
+
+function absorbCookies(url, response) {
+  try {
+    const list = response.headers.getSetCookie ? response.headers.getSetCookie() : []
+    if (!list || list.length === 0) return
+    const host = new URL(url).hostname
+    const jar = cookieJar.get(host) || new Map()
+    for (const item of list) {
+      const pair = String(item).split(';')[0]
+      const idx = pair.indexOf('=')
+      if (idx <= 0) continue
+      jar.set(pair.slice(0, idx).trim(), pair.slice(idx + 1).trim())
+    }
+    cookieJar.set(host, jar)
+  } catch (e) {}
+}
+
+function cookieHeader(url) {
+  try {
+    const jar = cookieJar.get(new URL(url).hostname)
+    if (!jar || jar.size === 0) return ''
+    return Array.from(jar.entries()).map(function (kv) { return kv[0] + '=' + kv[1] }).join('; ')
+  } catch (e) { return '' }
+}
+
 // 只允许 http/https，且拦截本地/内网地址
 async function safeFetch(input, init) {
   let target = String(input)
@@ -17,11 +44,16 @@ async function safeFetch(input, init) {
   if (/^(localhost|127\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)/.test(host)) {
     throw new Error('不允许访问内网地址: ' + host)
   }
+  const headers = Object.assign({}, (init && init.headers) || {})
+  const cookie = cookieHeader(target)
+  if (cookie && !headers.Cookie && !headers.cookie) headers.Cookie = cookie
+
   const response = await fetch(target, {
     method: (init && init.method) || 'GET',
-    headers: (init && init.headers) || {},
+    headers: headers,
     body: init && init.body
   })
+  absorbCookies(target, response)
   const text = await response.text()
   return {
     ok: response.ok,

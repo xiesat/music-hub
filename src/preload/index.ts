@@ -24,6 +24,7 @@ const library: LibraryApi = {
   stats: (): Promise<LibraryStats> => ipcRenderer.invoke('library:stats'),
   removeTrack: (id: string): Promise<void> => ipcRenderer.invoke('library:remove', id),
   removeTracks: (ids: string[]): Promise<void> => ipcRenderer.invoke('library:remove-many', ids),
+  favoriteRemote: (track) => ipcRenderer.invoke('library:favorite-remote', track),
   enrichCovers: (limit?: number): Promise<{ checked: number; filled: number }> =>
     ipcRenderer.invoke('library:enrich-covers', limit),
   lyric: (id: string): Promise<{ lrc: string | null; title: string } | null> =>
@@ -88,6 +89,23 @@ const providers: ProviderApi = {
   }
 }
 
+const downloads = {
+  list: () => ipcRenderer.invoke('downloads:list'),
+  add: (input: { title: string; artist: string; providerId: string; providerKey: string }) =>
+    ipcRenderer.invoke('downloads:add', input),
+  cancel: (id: string): Promise<void> => ipcRenderer.invoke('downloads:cancel', id),
+  retry: (id: string): Promise<void> => ipcRenderer.invoke('downloads:retry', id),
+  clear: (): Promise<void> => ipcRenderer.invoke('downloads:clear'),
+  reveal: (id: string): Promise<void> => ipcRenderer.invoke('downloads:reveal', id),
+  onProgress: (listener: (task: unknown) => void) => {
+    const handler = (_event: unknown, task: unknown): void => listener(task)
+    ipcRenderer.on('downloads:progress', handler)
+    return () => {
+      ipcRenderer.removeListener('downloads:progress', handler)
+    }
+  }
+}
+
 const settings: SettingsApi = {
   get: <T>(key: string): Promise<T | null> => ipcRenderer.invoke('settings:get', key),
   set: (key: string, value: unknown): Promise<void> => ipcRenderer.invoke('settings:set', key, value)
@@ -100,7 +118,8 @@ const api = {
   ui,
   settings,
   playlists,
-  providers
+  providers,
+  downloads
 }
 
 if (process.contextIsolated) {

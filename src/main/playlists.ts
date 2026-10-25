@@ -119,8 +119,8 @@ export function listPlaylistTracks(
 
   const rows = db
     .prepare(
-      'SELECT t.id, t.kind, t.provider, t.provider_key, t.cover_url, t.title, t.artist, t.album, t.duration_ms, t.format, t.bitrate, t.size,' +
-        ' t.path, t.cover_path, t.favorite, t.play_count, t.created_at' +
+      'SELECT t.id, t.kind, t.provider, t.provider_key, t.cover_url, t.cover_path, t.title, t.artist, t.album, t.duration_ms, t.format, t.bitrate, t.size,' +
+        ' t.path, t.favorite, t.play_count, t.created_at' +
         ' FROM playlist_items pi JOIN tracks t ON t.id = pi.track_id' +
         ' WHERE pi.playlist_id = @id' +
         where +

@@ -9,11 +9,17 @@ interface PlaylistsState {
   rename: (id: string, name: string) => Promise<void>
   remove: (id: string) => Promise<void>
   addTracks: (id: string, trackIds: string[]) => Promise<number>
+  /** 侧边栏点「重命名」时，让歌单页进入编辑态 */
+  editingId: string | null
+  setEditing: (id: string | null) => void
 }
 
 export const usePlaylists = create<PlaylistsState>((set, get) => ({
   items: [],
   loading: false,
+  editingId: null,
+
+  setEditing: (id) => set({ editingId: id }),
 
   refresh: async () => {
     set({ loading: true })

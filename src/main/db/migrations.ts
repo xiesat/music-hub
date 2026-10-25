@@ -110,5 +110,13 @@ export const migrations: string[] = [
   `
   -- v5: 远程曲目（平台歌单导入）封面外链
   ALTER TABLE tracks ADD COLUMN cover_url TEXT;
+  `,
+
+  `
+  -- v6: 下载任务记录展示字段
+  ALTER TABLE downloads ADD COLUMN title TEXT;
+  ALTER TABLE downloads ADD COLUMN artist TEXT;
+  ALTER TABLE downloads ADD COLUMN provider_id TEXT;
+  ALTER TABLE downloads ADD COLUMN provider_key TEXT;
   `
 ]

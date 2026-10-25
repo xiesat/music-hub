@@ -25,12 +25,45 @@
 - 播放器：队列、上一首/下一首、进度拖拽、音量、顺序/循环/单曲/随机
 - `media://` 自定义协议：支持 HTTP Range（可拖动进度）、CORS、媒体元素直连
 
+## 音源全部外部化（M4 重构）
+
+平台实现**不再硬编码在 TypeScript 里**，全部是 `resources/providers/*.js` 脚本，启动时自动安装到
+`userData/providers` 并按内容比对覆盖更新。新增平台只要加一个 js 文件。
+
+| 脚本 | 平台 | 能力 |
+|---|---|---|
+| `netease.js` | 网易云 | 搜索 / 播放 / 歌词 / 歌单导入 |
+| `qq.js` | QQ 音乐 | 歌单导入（播放需登录，脚本返回 null） |
+| `kugou.js` | 酷狗 | 搜索（播放需签名） |
+
+脚本接口：
+
+```js
+module.exports = {
+  platform: '平台名',
+  capabilities: ['search', 'stream', 'lyric', 'playlist'],
+  async search(query, page) { /* [{ id, title, artist, album, duration, cover }] */ },
+  async getMediaSource(track) { /* { url } | null */ },
+  async getLyric(track) { /* { lrc } */ },
+  async getUserPlaylists(uid) { /* [{ id, name, trackCount, coverUrl }] */ },
+  async getPlaylistTracks(id) { /* { name, tracks } */ }
+}
+```
+
+沙箱内的 `fetch` 会自动维护 cookie 罐（网易云取播放地址需要游客 cookie）。
+
 ## 多音源互备（M5）
 
 - 发现页音源下拉新增 **「全部音源」**：并行搜索所有启用音源，结果**交错合并**，每行标注来源
 - 顶部显示各音源状态条：`网易云音乐 30 条` / `某音源 失败`（悬停看错误原因）
 - 单个音源失败不影响其它音源出结果
 - **播放换源兜底**：某首在本音源取不到地址时，自动去其它音源按 标题+艺人 找同名曲并取流
+
+## 下载管理
+
+- 发现页下载会进入任务队列（并发 2），在「下载管理」查看进度
+- 支持取消、重试、打开所在文件夹、清空已完成；任务与结果持久化，重启后仍可见
+- 下载完成自动解析标签并写入曲库
 
 ## 平台歌单导入（M4.5）
 
@@ -177,4 +210,5 @@ pnpm smoke        # 冒烟测试：跑通 IPC + DB 后自动退出
 - [x] M4.5 平台歌单导入（网易云可播放 / QQ 仅结构）
 - [x] M5 多音源并行搜索 + 播放换源兜底
 - [ ] M6 桌面歌词、自动更新、同步
+- [ ] 部署（未做，等确认）
 - [ ] M5 桌面歌词、系统媒体控制、自动更新
