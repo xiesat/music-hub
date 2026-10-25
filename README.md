@@ -151,7 +151,7 @@ MusicHub 把这些地方聚合到一个应用里：
 ### 从源码运行
 
 ```bash
-git clone https://github.com/<你的用户名>/music-hub.git
+git clone https://github.com/xiesat/music-hub.git
 cd music-hub
 pnpm install
 

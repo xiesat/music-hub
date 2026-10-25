@@ -1,6 +1,6 @@
 {
-  "repo": "",
-  "ref": "",
+  "repo": "https://github.com/xiesat/music-hub-providers.git",
+  "ref": "v1.0.0",
   "local": "../music-hub-providers/providers",
-  "note": "发布后把 repo 填成 https://github.com/<你>/music-hub-providers.git，ref 填 tag 或 commit"
+  "note": "ref 可以是 tag 或 commit；本地开发时若 git 不可用会回退到 local 目录"
 }
