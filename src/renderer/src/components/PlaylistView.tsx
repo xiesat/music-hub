@@ -5,6 +5,7 @@ import type { Track, TrackMenuResult, TrackSort } from '@shared/types'
 import { formatDuration } from '../lib/format'
 import { usePlayer } from '../stores/player'
 import { usePlaylists } from '../stores/playlists'
+import { useUi } from '../stores/ui'
 import { TrackTable } from './TrackTable'
 
 interface Props {
@@ -18,6 +19,7 @@ export function PlaylistView({ playlistId }: Props): JSX.Element {
   const removePlaylist = usePlaylists((state) => state.remove)
   const editingId = usePlaylists((state) => state.editingId)
   const setEditingId = usePlaylists((state) => state.setEditing)
+  const requestDownloads = useUi((state) => state.requestDownloads)
 
   const [items, setItems] = useState<Track[]>([])
   const [total, setTotal] = useState(0)
@@ -115,26 +117,21 @@ export function PlaylistView({ playlistId }: Props): JSX.Element {
 
       switch (result.action) {
         case 'download': {
-          let ok = 0
-          let failed = 0
-          for (const track of picked) {
-            if (!track.providerId || !track.providerKey) {
-              failed += 1
-              continue
-            }
-            try {
-              await window.api.providers.download(
-                track.providerId,
-                track.providerKey,
-                track.title,
-                track.artist ?? ''
-              )
-              ok += 1
-            } catch {
-              failed += 1
-            }
+          // 走统一的风险确认 + 下载队列（原来是无提示的后台下载）
+          const downloadable = picked.filter((track) => track.providerId && track.providerKey)
+          if (downloadable.length === 0) {
+            setMessage('这些曲目没有可用的音源信息，无法下载')
+            break
           }
-          setMessage('下载完成 ' + ok + ' 首' + (failed > 0 ? '，失败 ' + failed + ' 首' : ''))
+          requestDownloads(
+            downloadable.map((track) => ({
+              title: track.title,
+              artist: track.artist ?? '',
+              providerId: track.providerId ?? '',
+              providerKey: track.providerKey ?? '',
+              coverUrl: track.coverUrl ?? null
+            }))
+          )
           break
         }
         case 'play': {

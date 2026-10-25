@@ -16,6 +16,7 @@ export interface DownloadTask {
   artist: string
   providerId: string
   providerKey: string
+  coverUrl: string | null
   status: DownloadStatus
   received: number
   total: number
@@ -116,6 +117,7 @@ export function listDownloads(): DownloadTask[] {
         artist: row.artist ?? '',
         providerId: row.provider_id ?? '',
         providerKey: row.provider_key ?? '',
+        coverUrl: null,
         status: (row.status as DownloadStatus) ?? 'done',
         received: row.bytes_done ?? 0,
         total: row.bytes_total ?? 0,
@@ -139,6 +141,7 @@ export function enqueueDownload(input: {
   artist: string
   providerId: string
   providerKey: string
+  coverUrl?: string | null
 }): DownloadTask {
   const id = 'dl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)
   const task: DownloadTask = {
@@ -147,6 +150,7 @@ export function enqueueDownload(input: {
     artist: input.artist,
     providerId: input.providerId,
     providerKey: input.providerKey,
+    coverUrl: input.coverUrl ?? null,
     status: 'queued',
     received: 0,
     total: 0,
@@ -252,6 +256,25 @@ async function run(task: DownloadTask): Promise<void> {
       }
     } finally {
       await handle.close()
+    }
+
+    // 下载封面为同名图片，扫描入库时会被识别为本地封面
+    if (task.coverUrl) {
+      try {
+        const coverResponse = await fetch(task.coverUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0', Referer: new URL(task.coverUrl).origin + '/' }
+        })
+        if (coverResponse.ok) {
+          const buffer = Buffer.from(await coverResponse.arrayBuffer())
+          if (buffer.byteLength > 1024) {
+            const contentType = coverResponse.headers.get('content-type') ?? ''
+            const ext = contentType.includes('png') ? '.png' : '.jpg'
+            fs.writeFileSync(filePath.replace(/\.[^.]+$/, '') + ext, buffer)
+          }
+        }
+      } catch {
+        /* 封面失败不影响音频 */
+      }
     }
 
     await ingestFile(filePath)

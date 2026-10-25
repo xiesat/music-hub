@@ -94,7 +94,7 @@ const providers: ProviderApi = {
 
 const downloads = {
   list: () => ipcRenderer.invoke('downloads:list'),
-  add: (input: { title: string; artist: string; providerId: string; providerKey: string }) =>
+  add: (input: { title: string; artist: string; providerId: string; providerKey: string; coverUrl?: string | null }) =>
     ipcRenderer.invoke('downloads:add', input),
   cancel: (id: string): Promise<void> => ipcRenderer.invoke('downloads:cancel', id),
   retry: (id: string): Promise<void> => ipcRenderer.invoke('downloads:retry', id),

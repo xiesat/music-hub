@@ -3,12 +3,16 @@ import { AlertTriangle } from 'lucide-react'
 import { useUi } from '../stores/ui'
 
 export function DownloadRiskDialog(): JSX.Element | null {
-  const pending = useUi((state) => state.pendingDownload)
+  const pending = useUi((state) => state.pendingDownloads)
   const close = useUi((state) => state.closeDownload)
-  if (!pending) return null
+  if (!pending || pending.length === 0) return null
+
+  const count = pending.length
 
   const confirm = async (): Promise<void> => {
-    await window.api.downloads.add(pending)
+    for (const item of pending) {
+      await window.api.downloads.add(item)
+    }
     close()
   }
 
@@ -21,8 +25,10 @@ export function DownloadRiskDialog(): JSX.Element | null {
         </header>
         <div className="space-y-3 px-5 py-4 text-[12px] leading-relaxed text-ink-300">
           <p className="truncate text-[13px] text-ink-100">
-            {pending.title}
-            <span className="ml-2 text-[11px] text-ink-500">{pending.artist}</span>
+            {count === 1 ? pending[0].title : '共 ' + count + ' 首'}
+            {count === 1 ? (
+              <span className="ml-2 text-[11px] text-ink-500">{pending[0].artist}</span>
+            ) : null}
           </p>
           <ul className="list-disc space-y-1.5 pl-4">
             <li>下载后文件会保存到本地下载目录，并写入你的曲库。</li>

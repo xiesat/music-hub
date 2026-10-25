@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
-import { basename, extname, join } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
 import { app } from 'electron'
 import { parseFile } from 'music-metadata'
 import type { ScanProgress } from '@shared/types'
@@ -15,6 +15,38 @@ const PARSE_CONCURRENCY = 6
 const FLUSH_SIZE = 40
 
 let coverDirCache: string | null = null
+
+function findSidecarCover(filePath: string): string | null {
+  const dir = dirname(filePath)
+  const stem = basename(filePath).replace(/\.[^.]+$/, '')
+  const candidates = [
+    stem + '.jpg',
+    stem + '.jpeg',
+    stem + '.png',
+    stem + '.webp',
+    'cover.jpg',
+    'folder.jpg',
+    'album.jpg',
+    'front.jpg'
+  ]
+  for (const name of candidates) {
+    const candidate = join(dir, name)
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+function saveSidecarCover(filePath: string, albumKey: string): string | null {
+  const source = findSidecarCover(filePath)
+  if (!source) return null
+  try {
+    const data = fs.readFileSync(source)
+    const format = source.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'
+    return saveCover(data, format, albumKey)
+  } catch {
+    return null
+  }
+}
 
 function coverDir(): string {
   if (!coverDirCache) {
@@ -156,7 +188,7 @@ async function parseOne(filePath: string, stat: fs.Stats): Promise<UpsertTrackIn
     channels: null,
     size: stat.size,
     mtime: Math.floor(stat.mtimeMs),
-    coverPath: null,
+    coverPath: saveSidecarCover(filePath, filePath),
     lyric: readSidecarLyric(filePath),
     lyricMtime: sidecarMtime(filePath)
   }
@@ -171,9 +203,12 @@ async function parseOne(filePath: string, stat: fs.Stats): Promise<UpsertTrackIn
 
     const picture = common.picture?.[0]
     let coverPath: string | null = null
+    const albumKey = [album ?? '', common.albumartist ?? artist ?? '', artist ?? ''].join('|') || filePath
     if (picture?.data) {
-      const albumKey = [album ?? '', common.albumartist ?? artist ?? '', artist ?? ''].join('|') || filePath
       coverPath = saveCover(picture.data, picture.format, albumKey)
+    } else {
+      // 内嵌封面缺失时，认同名图片 / cover.jpg / folder.jpg
+      coverPath = saveSidecarCover(filePath, albumKey)
     }
 
     return {

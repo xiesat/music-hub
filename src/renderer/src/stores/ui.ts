@@ -1,3 +1,11 @@
+export interface DownloadRequest {
+  title: string
+  artist: string
+  providerId: string
+  providerKey: string
+  coverUrl?: string | null
+}
+
 import { create } from 'zustand'
 
 interface UiState {
@@ -11,8 +19,8 @@ interface UiState {
   importOpen: boolean
   openImport: () => void
   closeImport: () => void
-  pendingDownload: { title: string; artist: string; providerId: string; providerKey: string } | null
-  requestDownload: (payload: { title: string; artist: string; providerId: string; providerKey: string }) => void
+  pendingDownloads: DownloadRequest[] | null
+  requestDownloads: (items: DownloadRequest[]) => void
   closeDownload: () => void
 }
 
@@ -27,7 +35,7 @@ export const useUi = create<UiState>((set) => ({
   importOpen: false,
   openImport: () => set({ importOpen: true }),
   closeImport: () => set({ importOpen: false }),
-  pendingDownload: null,
-  requestDownload: (payload) => set({ pendingDownload: payload }),
-  closeDownload: () => set({ pendingDownload: null })
+  pendingDownloads: null,
+  requestDownloads: (items) => set({ pendingDownloads: items.length > 0 ? items : null }),
+  closeDownload: () => set({ pendingDownloads: null })
 }))

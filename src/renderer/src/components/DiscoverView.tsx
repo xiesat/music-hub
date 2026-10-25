@@ -158,18 +158,21 @@ export function DiscoverView(): JSX.Element {
     }
   }
 
-  const requestDownload = useUi((state) => state.requestDownload)
+  const requestDownloads = useUi((state) => state.requestDownloads)
 
   const download = async (track: RemoteTrack): Promise<void> => {
     setBusyKey(track.key)
     useDiscover.setState({ error: null, message: null })
     try {
-      requestDownload({
-        title: track.title,
-        artist: track.artist,
-        providerId: track.providerId,
-        providerKey: track.key
-      })
+      requestDownloads([
+        {
+          title: track.title,
+          artist: track.artist,
+          providerId: track.providerId,
+          providerKey: track.key,
+          coverUrl: track.coverUrl
+        }
+      ])
     } catch (err) {
       useDiscover.setState({ error: '下载失败：' + (err as Error).message })
     } finally {

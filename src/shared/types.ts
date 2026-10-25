@@ -216,6 +216,7 @@ export interface DownloadTask {
   artist: string
   providerId: string
   providerKey: string
+  coverUrl: string | null
   status: DownloadStatus
   received: number
   total: number
@@ -226,7 +227,7 @@ export interface DownloadTask {
 
 export interface DownloadsApi {
   list(): Promise<DownloadTask[]>
-  add(input: { title: string; artist: string; providerId: string; providerKey: string }): Promise<DownloadTask>
+  add(input: { title: string; artist: string; providerId: string; providerKey: string; coverUrl?: string | null }): Promise<DownloadTask>
   cancel(id: string): Promise<void>
   retry(id: string): Promise<void>
   clear(): Promise<void>
