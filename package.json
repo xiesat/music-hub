@@ -10,6 +10,9 @@
     "node": ">=20.19"
   },
   "scripts": {
+    "sync:providers": "node scripts/sync-providers.mjs",
+    "predev": "node scripts/sync-providers.mjs",
+    "prebuild": "node scripts/sync-providers.mjs",
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
     "build": "pnpm run typecheck && electron-vite build",

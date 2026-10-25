@@ -57,6 +57,25 @@
 `ctx.get/post`（自动 cookie/UA/Referer）、`ctx.mapSong`、`ctx.crypto`（md5/aesCbc/aesEcb）、
 `ctx.auth`（me / loggedIn / get(cookie 名)）、`ctx.error(code)`、`ctx.log`。
 
+## 仓库拆分：插件在独立仓库
+
+音源插件已从主仓库拆出：**`music-hub-providers`**（本地路径 `../music-hub-providers`）。
+
+主仓库的 `resources/providers/` 不再进版本管理，由脚本同步：
+
+```bash
+pnpm sync:providers   # 或直接 pnpm dev / pnpm build（predev/prebuild 会自动跑）
+```
+
+插件来源的优先级：
+
+1. 环境变量 `MUSIC_HUB_PROVIDERS_DIR` 指向的目录
+2. `providers.lock.json` 里的 `repo` + `ref`（发布后填写，CI 用这个）
+3. 同级目录 `../music-hub-providers/providers`（本地开发）
+4. 已有的 `resources/providers`（保留不动）
+
+打包时插件通过 `extraResources` 进入安装包的 `resources/providers`。
+
 ## 音源全部外部化（M4 重构）
 
 平台实现**不再硬编码在 TypeScript 里**，全部是 `resources/providers/*.js` 脚本，启动时自动安装到

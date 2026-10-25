@@ -14,4 +14,5 @@ smoke.json
 screenshot.png
 .vite/
 electron.vite.config.ts.*.mjs
-
+resources/providers/
+.providers-cache/

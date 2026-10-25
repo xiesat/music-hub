@@ -1,0 +1,6 @@
+{
+  "repo": "",
+  "ref": "",
+  "local": "../music-hub-providers/providers",
+  "note": "发布后把 repo 填成 https://github.com/<你>/music-hub-providers.git，ref 填 tag 或 commit"
+}
