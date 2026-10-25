@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import type { Track } from '@shared/types'
+import type { PlayerSnapshot, Track } from '@shared/types'
 
-export type PlayMode = 'sequence' | 'loop' | 'single' | 'shuffle'
+export type PlayMode = PlayerSnapshot['mode']
 
 interface PlayerState {
   queue: Track[]
@@ -13,7 +13,11 @@ interface PlayerState {
   muted: boolean
   mode: PlayMode
   error: string | null
+  /** 单击列表中某首时的高亮预览（不播放） */
+  selectedTrack: Track | null
 
+  selectTrack: (track: Track | null) => void
+  playSelected: () => void
   playQueue: (tracks: Track[], startIndex: number) => void
   playIndex: (index: number) => void
   toggle: () => void
@@ -24,15 +28,13 @@ interface PlayerState {
   toggleMute: () => void
   cycleMode: () => void
   clearQueue: () => void
-  /** 插入到当前曲目之后（下一首播放） */
   enqueueNext: (tracks: Track[]) => void
-  /** 追加到队列末尾 */
   appendQueue: (tracks: Track[]) => void
-  /** 从队列中移除，自动修正当前索引 */
   removeFromQueue: (ids: string[]) => void
 }
 
 const MODE_ORDER: PlayMode[] = ['sequence', 'loop', 'single', 'shuffle']
+const STATE_KEY = 'player.state'
 
 const audio = typeof Audio !== 'undefined' ? new Audio() : null
 if (audio) {
@@ -40,17 +42,21 @@ if (audio) {
   audio.volume = 0.8
 }
 
+/** 恢复播放时待跳转的位置（毫秒） */
+let pendingSeek = 0
+
 function mediaUrl(track: Track): string {
   return 'media://track/' + encodeURIComponent(track.id)
 }
 
-function loadAndPlay(track: Track | null): void {
+function loadAndPlay(track: Track | null, startAt = 0): void {
   if (!audio) return
   if (!track) {
     audio.removeAttribute('src')
     audio.load()
     return
   }
+  pendingSeek = startAt
   audio.src = mediaUrl(track)
   void audio.play().catch(() => {
     usePlayer.setState({ playing: false, error: '无法播放该文件' })
@@ -82,11 +88,29 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   muted: false,
   mode: 'sequence',
   error: null,
+  selectedTrack: null,
+
+  selectTrack: (track) => set({ selectedTrack: track }),
+
+  playSelected: () => {
+    const { selectedTrack, queue } = get()
+    if (!selectedTrack) return
+    const existing = queue.findIndex((item) => item.id === selectedTrack.id)
+    set({ selectedTrack: null })
+    if (existing >= 0) get().playIndex(existing)
+    else get().playQueue([selectedTrack], 0)
+  },
 
   playQueue: (tracks, startIndex) => {
     if (tracks.length === 0) return
     const index = Math.max(0, Math.min(startIndex, tracks.length - 1))
-    set({ queue: tracks, index, positionMs: 0, durationMs: tracks[index].durationMs ?? 0, error: null })
+    set({
+      queue: tracks,
+      index,
+      positionMs: 0,
+      durationMs: tracks[index].durationMs ?? 0,
+      error: null
+    })
     loadAndPlay(tracks[index])
   },
 
@@ -99,11 +123,20 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   toggle: () => {
     if (!audio) return
-    if (get().playing) {
+    const { playing, queue, index } = get()
+
+    if (playing) {
       audio.pause()
-    } else {
-      void audio.play().catch(() => set({ playing: false }))
+      return
     }
+
+    // 恢复上次会话的曲目：此时 audio 还没有 src
+    if (!audio.getAttribute('src') && queue[index]) {
+      loadAndPlay(queue[index], pendingSeek)
+      return
+    }
+
+    void audio.play().catch(() => set({ playing: false }))
   },
 
   next: (auto = false) => {
@@ -154,12 +187,16 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   seek: (ms) => {
     if (!audio) return
     audio.currentTime = Math.max(0, ms / 1000)
+    pendingSeek = 0
     set({ positionMs: Math.max(0, ms) })
   },
 
   setVolume: (volume) => {
     const clamped = Math.max(0, Math.min(1, volume))
-    if (audio) audio.volume = clamped
+    if (audio) {
+      audio.volume = clamped
+      audio.muted = false
+    }
     set({ volume: clamped, muted: false })
   },
 
@@ -177,7 +214,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   clearQueue: () => {
     loadAndPlay(null)
-    set({ queue: [], index: -1, playing: false, positionMs: 0, durationMs: 0 })
+    pendingSeek = 0
+    set({ queue: [], index: -1, playing: false, positionMs: 0, durationMs: 0, selectedTrack: null })
   },
 
   enqueueNext: (tracks) => {
@@ -223,11 +261,92 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
 if (audio) {
   audio.addEventListener('play', () => usePlayer.setState({ playing: true }))
-  audio.addEventListener('pause', () => usePlayer.setState({ playing: false }))
+  audio.addEventListener('pause', () => {
+    usePlayer.setState({ playing: false })
+    savePlayerState()
+  })
   audio.addEventListener('timeupdate', () => usePlayer.setState({ positionMs: audio.currentTime * 1000 }))
-  audio.addEventListener('durationchange', () => {
+  audio.addEventListener('loadedmetadata', () => {
     if (Number.isFinite(audio.duration)) usePlayer.setState({ durationMs: audio.duration * 1000 })
+    if (pendingSeek > 0 && pendingSeek < audio.duration * 1000) {
+      audio.currentTime = pendingSeek / 1000
+    }
+    pendingSeek = 0
   })
   audio.addEventListener('ended', () => usePlayer.getState().next(true))
   audio.addEventListener('error', () => usePlayer.setState({ playing: false, error: '播放失败' }))
+  audio.addEventListener('volumechange', () => {
+    if (!audio) return
+    usePlayer.setState({ volume: audio.volume, muted: audio.muted })
+  })
+}
+
+// ---------- 状态持久化 ----------
+
+let saveTimer: number | null = null
+
+export function savePlayerState(): void {
+  if (typeof window === 'undefined' || !window.api?.settings) return
+  const { volume, muted, mode, queue, index, positionMs } = usePlayer.getState()
+  const capped = queue.slice(0, 1000)
+  const snapshot: PlayerSnapshot = {
+    volume,
+    muted,
+    mode,
+    queue: capped,
+    index: index < capped.length ? index : -1,
+    positionMs: Math.round(positionMs)
+  }
+  void window.api.settings.set(STATE_KEY, snapshot)
+}
+
+function scheduleSave(): void {
+  if (saveTimer !== null) window.clearTimeout(saveTimer)
+  saveTimer = window.setTimeout(() => {
+    saveTimer = null
+    savePlayerState()
+  }, 500)
+}
+
+usePlayer.subscribe((state, previous) => {
+  const changed =
+    state.volume !== previous.volume ||
+    state.muted !== previous.muted ||
+    state.mode !== previous.mode ||
+    state.queue !== previous.queue ||
+    state.index !== previous.index
+  if (changed) scheduleSave()
+})
+
+/** 启动时恢复上次的音量、模式、队列与进度 */
+export async function hydratePlayer(): Promise<void> {
+  try {
+    const saved = await window.api.settings.get<PlayerSnapshot>(STATE_KEY)
+    if (!saved) return
+
+    const queue = Array.isArray(saved.queue) ? saved.queue : []
+    const rawIndex = typeof saved.index === 'number' ? saved.index : -1
+    const index = queue.length > 0 ? Math.min(Math.max(rawIndex, 0), queue.length - 1) : -1
+    const volume = typeof saved.volume === 'number' ? saved.volume : 0.8
+    const muted = Boolean(saved.muted)
+    const positionMs = typeof saved.positionMs === 'number' ? saved.positionMs : 0
+
+    if (audio) {
+      audio.volume = volume
+      audio.muted = muted
+    }
+    pendingSeek = positionMs
+
+    usePlayer.setState({
+      volume,
+      muted,
+      mode: saved.mode ?? 'sequence',
+      queue,
+      index,
+      durationMs: index >= 0 ? (queue[index].durationMs ?? 0) : 0,
+      positionMs
+    })
+  } catch {
+    // 恢复失败不影响启动
+  }
 }

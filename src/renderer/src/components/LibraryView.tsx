@@ -187,6 +187,7 @@ export function LibraryView(): JSX.Element {
       const start = Math.min(anchorRef.current, index)
       const end = Math.max(anchorRef.current, index)
       setSelected(new Set(items.slice(start, end + 1).map((item) => item.id)))
+      usePlayer.getState().selectTrack(track)
       return
     }
 
@@ -204,6 +205,7 @@ export function LibraryView(): JSX.Element {
 
     setSelected(new Set([track.id]))
     anchorRef.current = index
+    usePlayer.getState().selectTrack(track)
   }
 
   const handleRowDoubleClick = (index: number): void => {
@@ -241,6 +243,7 @@ export function LibraryView(): JSX.Element {
     if (key === 'Escape') {
       setSelected(new Set())
       anchorRef.current = -1
+      usePlayer.getState().selectTrack(null)
       return
     }
 
@@ -357,6 +360,7 @@ export function LibraryView(): JSX.Element {
             onClick={() => {
               setSelected(new Set())
               anchorRef.current = -1
+              usePlayer.getState().selectTrack(null)
             }}
             className="ml-auto flex items-center gap-1 rounded px-2 py-0.5 transition-colors hover:bg-white/10"
           >

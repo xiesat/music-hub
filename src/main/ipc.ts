@@ -11,6 +11,7 @@ import {
   scanLibrary,
   setFavorite
 } from './library'
+import { getSetting, setSetting } from './settings'
 import { popupTrackMenu } from './track-menu'
 
 export function registerIpc(): void {
@@ -54,6 +55,12 @@ export function registerIpc(): void {
 
   ipcMain.handle('library:set-favorite', (_event, ids: string[], favorite: boolean) => {
     setFavorite(ids, favorite)
+  })
+
+  ipcMain.handle('settings:get', (_event, key: string) => getSetting<unknown>(key, null))
+
+  ipcMain.handle('settings:set', (_event, key: string, value: unknown) => {
+    setSetting(key, value)
   })
 
   ipcMain.handle('ui:reveal', (_event, path: string) => {

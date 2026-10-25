@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { closeDb } from './db'
 import { registerIpc } from './ipc'
 import { setProgressSink } from './library'
+import { getSetting, setSetting } from './settings'
 import { registerMediaProtocol, registerMediaScheme } from './media-protocol'
 import { captureWindow } from './screenshot'
 import { runSmokeTest } from './smoke'
@@ -35,6 +36,30 @@ function createWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false
     }
+  })
+
+  // 恢复上次的窗口位置与大小（离屏时不采用）
+  const savedBounds = getSetting<{ x: number; y: number; width: number; height: number } | null>(
+    'window.bounds',
+    null
+  )
+  if (savedBounds) {
+    const { screen } = require('electron') as typeof import('electron')
+    const visible = screen.getAllDisplays().some((display) => {
+      const area = display.workArea
+      return (
+        savedBounds.x < area.x + area.width &&
+        savedBounds.x + savedBounds.width > area.x &&
+        savedBounds.y < area.y + area.height &&
+        savedBounds.y + savedBounds.height > area.y
+      )
+    })
+    if (visible) win.setBounds(savedBounds)
+  }
+
+  win.on('close', () => {
+    const bounds = win.getNormalBounds()
+    setSetting('window.bounds', bounds)
   })
 
   win.on('ready-to-show', () => {

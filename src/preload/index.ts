@@ -8,6 +8,7 @@ import type {
   TrackMenuAction,
   TrackMenuPayload,
   TrackPage,
+  SettingsApi,
   TrackQuery,
   UiApi
 } from '@shared/types'
@@ -36,11 +37,17 @@ const ui: UiApi = {
   revealInFolder: (path: string): Promise<void> => ipcRenderer.invoke('ui:reveal', path)
 }
 
+const settings: SettingsApi = {
+  get: <T>(key: string): Promise<T | null> => ipcRenderer.invoke('settings:get', key),
+  set: (key: string, value: unknown): Promise<void> => ipcRenderer.invoke('settings:set', key, value)
+}
+
 const api = {
   getAppInfo: (): Promise<AppInfo> => ipcRenderer.invoke('app:info'),
   getDbStats: (): Promise<DbStats> => ipcRenderer.invoke('db:stats'),
   library,
-  ui
+  ui,
+  settings
 }
 
 if (process.contextIsolated) {

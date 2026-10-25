@@ -30,6 +30,12 @@ export async function runSmokeTest(win: BrowserWindow): Promise<void> {
 
     Object.assign(result, payload)
 
+    // 调试钩子：在渲染进程里执行一段脚本，结果写入 smoke.json
+    const evalScript = process.env.MUSIC_HUB_EVAL
+    if (evalScript) {
+      result.eval = await win.webContents.executeJavaScript(evalScript)
+    }
+
     const fixtures = process.env.MUSIC_HUB_FIXTURES
     if (fixtures) {
       const library = await runLibraryChecks(fixtures)

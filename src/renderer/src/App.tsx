@@ -7,6 +7,7 @@ import { LibraryView } from './components/LibraryView'
 import { PlayerBar } from './components/PlayerBar'
 import { Sidebar, type ViewId } from './components/Sidebar'
 import { TitleBar } from './components/TitleBar'
+import { hydratePlayer, savePlayerState } from './stores/player'
 
 const VIEW_META: Record<ViewId, { title: string; desc: string }> = {
   discover: { title: '发现音乐', desc: '接入音源后，这里会展示多平台搜索结果' },
@@ -22,6 +23,18 @@ export default function App(): JSX.Element {
   const [app, setApp] = useState<AppInfo | null>(null)
   const [db, setDb] = useState<DbStats | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // 启动时恢复上次的播放器状态（音量、模式、队列、进度）
+  useEffect(() => {
+    void hydratePlayer()
+  }, [])
+
+  // 退出前落盘一次，避免防抖窗口内丢状态
+  useEffect(() => {
+    const flush = (): void => savePlayerState()
+    window.addEventListener('beforeunload', flush)
+    return () => window.removeEventListener('beforeunload', flush)
+  }, [])
 
   useEffect(() => {
     let alive = true

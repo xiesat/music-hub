@@ -115,9 +115,25 @@ export interface UiApi {
   revealInFolder(path: string): Promise<void>
 }
 
+export interface SettingsApi {
+  get<T>(key: string): Promise<T | null>
+  set(key: string, value: unknown): Promise<void>
+}
+
+/** 退出时持久化的播放器状态 */
+export interface PlayerSnapshot {
+  volume: number
+  muted: boolean
+  mode: 'sequence' | 'loop' | 'single' | 'shuffle'
+  queue: Track[]
+  index: number
+  positionMs: number
+}
+
 export interface IpcApi {
   getAppInfo(): Promise<AppInfo>
   getDbStats(): Promise<DbStats>
   library: LibraryApi
   ui: UiApi
+  settings: SettingsApi
 }
