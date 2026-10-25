@@ -175,6 +175,37 @@ const ctx = {
   log: function () {
     send({ type: 'log', args: Array.prototype.slice.call(arguments).map(String) })
   },
+  // 通用请求：自定义 method / headers / body（签名接口需要 POST JSON）
+  request: async function (url, options) {
+    const opts = options || {}
+    const response = await safeFetch(url, {
+      method: opts.method || 'GET',
+      headers: opts.headers || {},
+      body: opts.body
+    })
+    return response.json()
+  },
+  // 加载插件目录内的脚本资源（如平台签名算法），按浏览器方式在全局作用域求值
+  loadScript: function (relativePath) {
+    ensureBrowserShims()
+    const path = require('node:path')
+    const full = path.resolve(pluginDir(), String(relativePath))
+    if (full.indexOf(path.resolve(pluginDir())) !== 0) throw new Error('只允许加载插件目录内的文件')
+    const source = fs.readFileSync(full, 'utf8')
+    const previous = currentFile
+    currentFile = full
+    try {
+      vm.runInThisContext(source, { filename: full })
+    } finally {
+      currentFile = previous
+    }
+    return true
+  },
+  // 读取 loadScript 之后产生的全局函数（如 getsign）
+  global: function (name) {
+    const value = globalThis[name]
+    return typeof value === 'function' ? value : value === undefined ? null : value
+  },
   crypto: {
     md5: function (text, encoding) {
       return nodeCrypto.createHash('md5').update(String(text), encoding || 'utf8').digest('hex')
@@ -196,6 +227,36 @@ const ctx = {
 }
 
 // ---------- 沙箱全局 ----------
+// ---------- 插件资源加载（如签名算法包）----------
+function pluginDir() {
+  return require('node:path').dirname(workerData.scriptPath)
+}
+
+let currentFile = workerData.scriptPath
+function currentDir() {
+  return require('node:path').dirname(currentFile)
+}
+
+let shimsReady = false
+function ensureBrowserShims() {
+  if (shimsReady) return
+  shimsReady = true
+  const g = globalThis
+  g.window = g
+  g.self = g
+  g.location = { host: 'y.qq.com', href: 'https://y.qq.com/', protocol: 'https:', origin: 'https://y.qq.com' }
+  g.navigator = { userAgent: UA, platform: 'Win32', language: 'zh-CN' }
+  g.document = { createElement: function () { return { style: {}, getContext: function () { return null } } }, cookie: '', referrer: 'https://y.qq.com/' }
+  g.localStorage = { getItem: function () { return null }, setItem: function () {}, removeItem: function () {} }
+  const baseRequire = require
+  // 相对路径按「当前正在求值的文件」所在目录解析，和 Node 一致
+  g.require = function (id) {
+    return id.charAt(0) === '.'
+      ? baseRequire(require('node:path').resolve(currentDir(), id))
+      : baseRequire(id)
+  }
+}
+
 const sandbox = {
   console: {
     log: function () { send({ type: 'log', args: Array.prototype.slice.call(arguments).map(String) }) },

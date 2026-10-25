@@ -36,7 +36,20 @@
 - 已登录过（session 里 cookie 还在）时，点登录会**立即成功**，不再重复弹窗
 - 凭据变化会重建脚本 worker，避免脚本读到旧登录态
 
-**已知限制**：QQ 的「我喜欢」「私人音乐」属于系统歌单（`dirid`），官方接口取不到歌曲；
+**QQ 已打通**（借用 `lib/qq-sign` 的官方签名算法）：
+
+- 搜索：`c.y.qq.com/soso/fcgi-bin/search_for_qq_cp`（免签名）
+- 歌单列表：`music.musicasset.PlaylistBaseRead/GetPlaylistByUin`（返回 `我喜欢`/`私人音乐`/自建歌单）
+- 歌单详情：`music.srfDissInfo.aiDissInfo/uniform_get_Dissinfo`（自建歌单可完整取歌）
+- 播放：`vkey.GetVkeyServer`（登录后走签名接口）
+
+插件可用新原语 `ctx.loadScript('./lib/xxx.js')` + `ctx.global('fn')` 加载平台签名算法，
+`ctx.request(url, {method, headers, body})` 发任意请求。
+
+**已知限制**：QQ 的「我喜欢」（`disstid=201`）首包只返回 `dirinfo` 不含歌曲，
+分页参数还没摸对；自建歌单可正常导入。
+
+**旧的限制记录**：QQ 的「我喜欢」「私人音乐」属于系统歌单（`dirid`），官方接口取不到歌曲；
 只能导入真正的自建歌单（`disstid`）。
 - 下载前会弹出**风险确认弹窗**（版权 / 账号风控），用户确认后才入队
 

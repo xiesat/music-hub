@@ -182,6 +182,13 @@ export async function installBundledScripts(bundledDir: string): Promise<number>
   const target = providersDir()
   let installed = 0
 
+  // 先递归同步 lib/ 下的插件资源（签名算法包等），这些不注册为音源
+  const libDir = join(bundledDir, 'lib')
+  if (existsSync(libDir)) {
+    const libTarget = join(target, 'lib')
+    fs.cpSync(libDir, libTarget, { recursive: true, force: true })
+  }
+
   for (const fileName of fs.readdirSync(bundledDir)) {
     if (!fileName.endsWith('.js')) continue
     const source = join(bundledDir, fileName)

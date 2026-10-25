@@ -1,9 +1,8 @@
 import type { JSX } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Download, Heart, Loader2, Play, Search } from 'lucide-react'
 import type { ProviderInfo, RemoteTrack } from '@shared/provider'
 import type { Track } from '@shared/types'
-import { useState } from 'react'
 import { formatDuration } from '../lib/format'
 import { useDiscover } from '../stores/discover'
 import { useUi } from '../stores/ui'
@@ -36,6 +35,7 @@ export function DiscoverView(): JSX.Element {
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [favorited, setFavorited] = useState<Set<string>>(() => new Set())
+  const [authLabel, setAuthLabel] = useState<string | null>(null)
 
   const providerId = useDiscover((state) => state.providerId)
   const keyword = useDiscover((state) => state.keyword)
@@ -62,6 +62,27 @@ export function DiscoverView(): JSX.Element {
   const selectedId = usePlayer((state) => state.selectedTrack?.id ?? null)
 
   const providerNames = new Map(providers.map((item) => [item.id, item.name]))
+
+  // 展示当前音源的登录态，避免「登录了但搜索没变化」的困惑
+  useEffect(() => {
+    let alive = true
+    if (providerId === 'all') {
+      setAuthLabel(null)
+      return
+    }
+    void window.api.providers
+      .authState(providerId)
+      .then((state) => {
+        if (!alive) return
+        setAuthLabel(state.loggedIn ? '已登录 ' + (state.nickname || state.uid || '') : null)
+      })
+      .catch(() => {
+        if (alive) setAuthLabel(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [providerId])
   const listRef = useRef<HTMLDivElement | null>(null)
   const restoredRef = useRef(false)
 
@@ -160,6 +181,11 @@ export function DiscoverView(): JSX.Element {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-2 border-b border-white/5 px-6 py-3">
+        {authLabel ? (
+          <span className="shrink-0 rounded bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300">
+            {authLabel}
+          </span>
+        ) : null}
         <select
           value={providerId}
           onChange={(event) => setProvider(event.target.value)}
