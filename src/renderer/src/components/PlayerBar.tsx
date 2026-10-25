@@ -1,8 +1,9 @@
 import type { JSX } from 'react'
 import { useState } from 'react'
-import { Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
+import { MicVocal, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
 import { formatDuration } from '../lib/format'
 import { usePlayer } from '../stores/player'
+import { useUi } from '../stores/ui'
 
 export function PlayerBar(): JSX.Element {
   const current = usePlayer((state) => state.queue[state.index] ?? null)
@@ -23,6 +24,8 @@ export function PlayerBar(): JSX.Element {
   const cycleMode = usePlayer((state) => state.cycleMode)
 
   const [coverFailed, setCoverFailed] = useState(false)
+  const openLyrics = useUi((state) => state.openLyrics)
+  const lyricsOpen = useUi((state) => state.lyricsOpen)
 
   const isPreview = Boolean(selectedTrack && selectedTrack.id !== current?.id)
   const display = isPreview ? selectedTrack : current
@@ -45,7 +48,12 @@ export function PlayerBar(): JSX.Element {
   return (
     <footer className="flex h-[76px] shrink-0 items-center gap-4 border-t border-white/5 bg-ink-850/90 px-4 backdrop-blur">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-ink-700 to-ink-800 ring-1 ring-white/5">
+        <button
+          onClick={openLyrics}
+          disabled={!display}
+          title="查看歌词"
+          className="group/cover relative h-11 w-11 shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-ink-700 to-ink-800 ring-1 ring-white/5 transition-transform hover:scale-105 disabled:cursor-default"
+        >
           {display && display.coverPath && !coverFailed ? (
             <img
               key={display.id}
@@ -55,7 +63,10 @@ export function PlayerBar(): JSX.Element {
               onError={() => setCoverFailed(true)}
             />
           ) : null}
-        </div>
+          <span className="absolute inset-0 hidden items-center justify-center bg-black/50 text-white group-hover/cover:flex">
+            <MicVocal size={15} />
+          </span>
+        </button>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="truncate text-[13px] text-ink-200">{display?.title ?? "未在播放"}</p>
@@ -111,6 +122,16 @@ export function PlayerBar(): JSX.Element {
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2 text-ink-400">
+        <button
+          onClick={openLyrics}
+          title="歌词"
+          className={[
+            "mr-1 transition-colors hover:text-ink-100",
+            lyricsOpen ? 'text-brand-400' : ''
+          ].join(' ')}
+        >
+          <MicVocal size={15} />
+        </button>
         <button onClick={toggleMute} className="transition-colors hover:text-ink-100">
           {muted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
         </button>

@@ -189,6 +189,14 @@ export function getTrackById(id: string): { id: string; path: string; coverPath:
   return { id: row.id, path: row.path, coverPath: row.cover_path }
 }
 
+export function getTrackLyric(id: string): { lrc: string | null; title: string } | null {
+  const row = getDb().prepare('SELECT title, lyric FROM tracks WHERE id = ?').get(id) as
+    | { title: string; lyric: string | null }
+    | undefined
+  if (!row) return null
+  return { lrc: row.lyric, title: row.title }
+}
+
 export function deleteTracks(ids: string[]): void {
   if (ids.length === 0) return
   const db = getDb()

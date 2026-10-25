@@ -20,6 +20,8 @@ const library: LibraryApi = {
   stats: (): Promise<LibraryStats> => ipcRenderer.invoke('library:stats'),
   removeTrack: (id: string): Promise<void> => ipcRenderer.invoke('library:remove', id),
   removeTracks: (ids: string[]): Promise<void> => ipcRenderer.invoke('library:remove-many', ids),
+  lyric: (id: string): Promise<{ lrc: string | null; title: string } | null> =>
+    ipcRenderer.invoke('library:lyric', id),
   setFavorite: (ids: string[], favorite: boolean): Promise<void> =>
     ipcRenderer.invoke('library:set-favorite', ids, favorite),
   onScanProgress: (listener: (progress: ScanProgress) => void): (() => void) => {

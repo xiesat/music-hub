@@ -4,6 +4,7 @@ import { Compass, ListMusic, Plug, Search } from 'lucide-react'
 import type { AppInfo, DbStats } from '@shared/types'
 import { InfoPanel } from './components/InfoPanel'
 import { LibraryView } from './components/LibraryView'
+import { LyricsView } from './components/LyricsView'
 import { PlayerBar } from './components/PlayerBar'
 import { Sidebar, type ViewId } from './components/Sidebar'
 import { TitleBar } from './components/TitleBar'
@@ -102,6 +103,7 @@ export default function App(): JSX.Element {
       </div>
 
       <PlayerBar />
+      <LyricsView />
     </div>
   )
 }

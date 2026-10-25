@@ -17,9 +17,9 @@ interface PlayerState {
   selectedTrack: Track | null
 
   selectTrack: (track: Track | null) => void
-  playSelected: () => void
+  playSelected: (startAt?: number) => void
   playQueue: (tracks: Track[], startIndex: number) => void
-  playIndex: (index: number) => void
+  playIndex: (index: number, startAt?: number) => void
   toggle: () => void
   next: (auto?: boolean) => void
   prev: () => void
@@ -92,13 +92,19 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   selectTrack: (track) => set({ selectedTrack: track }),
 
-  playSelected: () => {
+  playSelected: (startAt = 0) => {
     const { selectedTrack, queue } = get()
     if (!selectedTrack) return
     const existing = queue.findIndex((item) => item.id === selectedTrack.id)
     set({ selectedTrack: null })
-    if (existing >= 0) get().playIndex(existing)
-    else get().playQueue([selectedTrack], 0)
+    if (existing >= 0) get().playIndex(existing, startAt)
+    else {
+      get().playQueue([selectedTrack], 0)
+      if (startAt > 0) {
+        pendingSeek = startAt
+        get().seek(startAt)
+      }
+    }
   },
 
   playQueue: (tracks, startIndex) => {
@@ -114,11 +120,11 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     loadAndPlay(tracks[index])
   },
 
-  playIndex: (index) => {
+  playIndex: (index, startAt = 0) => {
     const track = get().queue[index]
     if (!track) return
-    set({ index, positionMs: 0, durationMs: track.durationMs ?? 0, error: null })
-    loadAndPlay(track)
+    set({ index, positionMs: startAt, durationMs: track.durationMs ?? 0, error: null })
+    loadAndPlay(track, startAt)
   },
 
   toggle: () => {

@@ -105,6 +105,7 @@ export interface LibraryApi {
   removeTrack(id: string): Promise<void>
   removeTracks(ids: string[]): Promise<void>
   setFavorite(ids: string[], favorite: boolean): Promise<void>
+  lyric(id: string): Promise<{ lrc: string | null; title: string } | null>
   onScanProgress(listener: (progress: ScanProgress) => void): () => void
 }
 

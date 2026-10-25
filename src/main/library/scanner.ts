@@ -62,6 +62,32 @@ function saveCover(data: Uint8Array, format: string | undefined, albumKey: strin
   }
 }
 
+/** 把标签里的内嵌歌词（含逐字 syncText）转成 LRC 文本 */
+interface LyricsTagLike {
+  text?: string
+  syncText?: { timestamp: number; text: string }[]
+}
+
+function embeddedLyricToLrc(lyrics: readonly unknown[] | undefined): string | null {
+  if (!lyrics || lyrics.length === 0) return null
+  const first = lyrics[0] as LyricsTagLike
+  const syncText = first.syncText as { timestamp: number; text: string }[] | undefined
+  if (syncText && syncText.length > 0) {
+    const pad = (value: number, size = 2): string => String(value).padStart(size, '0')
+    return syncText
+      .map((entry) => {
+        const totalMs = entry.timestamp
+        const minutes = Math.floor(totalMs / 60000)
+        const seconds = Math.floor((totalMs % 60000) / 1000)
+        const centis = Math.floor((totalMs % 1000) / 10)
+        return '[' + pad(minutes) + ':' + pad(seconds) + '.' + pad(centis) + ']' + entry.text
+      })
+      .join('\n')
+  }
+  const plain = first.text?.trim()
+  return plain && plain.length > 0 ? plain : null
+}
+
 function readSidecarLyric(filePath: string): string | null {
   const lrcPath = filePath.slice(0, filePath.length - extname(filePath).length) + '.lrc'
   try {
@@ -127,7 +153,8 @@ async function parseOne(filePath: string, stat: fs.Stats): Promise<UpsertTrackIn
       bitrate: format.bitrate ? Math.round(format.bitrate) : null,
       sampleRate: format.sampleRate ?? null,
       channels: format.numberOfChannels ?? null,
-      coverPath: coverPath ?? null
+      coverPath: coverPath ?? null,
+      lyric: base.lyric ?? embeddedLyricToLrc(common.lyrics)
     }
   } catch {
     // 解析失败也要入库，避免文件被反复重试

@@ -7,6 +7,7 @@ import {
   getLibraryRoots,
   getLibraryStats,
   getTrackById,
+  getTrackLyric,
   listTracks,
   scanLibrary,
   setFavorite
@@ -52,6 +53,8 @@ export function registerIpc(): void {
   ipcMain.handle('library:remove-many', (_event, ids: string[]) => {
     deleteTracks(ids)
   })
+
+  ipcMain.handle('library:lyric', (_event, id: string) => getTrackLyric(id))
 
   ipcMain.handle('library:set-favorite', (_event, ids: string[], favorite: boolean) => {
     setFavorite(ids, favorite)
