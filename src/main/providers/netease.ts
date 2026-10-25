@@ -4,32 +4,23 @@ import { httpJson, httpRequest } from './http'
 
 const BASE = 'https://music.163.com'
 
-interface SearchResponse {
-  code: number
-  result?: {
-    songCount: number
-    songs: {
-      id: number
-      name: string
-      duration: number
-      artists: { name: string }[]
-      album: { name: string; picUrl?: string }
-    }[]
-  }
-}
-
 interface LyricResponse {
   code: number
   lrc?: { lyric?: string }
   tlyric?: { lyric?: string }
 }
 
-interface DetailResponse {
-  songs?: {
-    id: number
-    album?: { picUrl?: string }
-    artists?: { name: string }[]
-  }[]
+interface CloudSearchSong {
+  id: number
+  name: string
+  dt?: number
+  ar?: { name: string }[]
+  al?: { name?: string; picUrl?: string }
+}
+
+interface CloudSearchResponse {
+  code?: number
+  result?: { songCount?: number; songs?: CloudSearchSong[] }
 }
 
 interface UrlResponse {
@@ -70,25 +61,6 @@ async function ensureCookies(): Promise<void> {
   cookieReadyAt = Date.now()
 }
 
-type Song = NonNullable<SearchResponse['result']>['songs'][number]
-
-interface ExtraMeta {
-  coverUrl: string | null
-  artist: string | null
-}
-
-function toTrack(song: Song, extra?: ExtraMeta): RemoteTrack {
-  return {
-    providerId: 'netease',
-    key: String(song.id),
-    title: song.name,
-    artist: extra?.artist || song.artists.map((item) => item.name).join(' / '),
-    album: song.album?.name ?? null,
-    durationMs: song.duration ?? null,
-    coverUrl: extra?.coverUrl ?? (song.album?.picUrl ? song.album.picUrl + '?param=120y120' : null)
-  }
-}
-
 export const neteaseProvider = {
   info: {
     id: 'netease',
@@ -108,43 +80,55 @@ export const neteaseProvider = {
 
     const limit = 30
     const offset = Math.max(0, (page - 1) * limit)
-    const url =
-      BASE +
-      '/api/search/get/web?s=' +
+
+    // /api/search/get/web 容易被单接口限流（405），且不返回封面；
+    // cloudsearch/pc 是网页版实际使用的接口，一次请求给全字段
+    const body =
+      's=' +
       encodeURIComponent(keyword) +
       '&type=1&limit=' +
       limit +
       '&offset=' +
-      offset
-    const json = await httpJson<SearchResponse>(url, { referer: BASE + '/' })
+      offset +
+      '&total=true'
+
+    let json: CloudSearchResponse
+    try {
+      json = await httpJson<CloudSearchResponse>(BASE + '/api/cloudsearch/pc', {
+        method: 'POST',
+        body,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        referer: BASE + '/'
+      })
+    } catch (error) {
+      // 兜底：换另一个 POST 搜索接口
+      json = await httpJson<CloudSearchResponse>(BASE + '/api/search/get', {
+        method: 'POST',
+        body: body.replace('&total=true', ''),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        referer: BASE + '/'
+      })
+    }
+
     assertOk(json.code, '搜索失败')
+
     const songs = json.result?.songs ?? []
     const total = json.result?.songCount ?? songs.length
 
-    // 搜索接口只给 picId，封面与规范化艺人名要再查一次详情（一次请求拿全部）
-    const extras = new Map<number, ExtraMeta>()
-    if (songs.length > 0) {
-      try {
-        const ids = encodeURIComponent(JSON.stringify(songs.map((song) => song.id)))
-        const detail = await httpJson<DetailResponse>(BASE + '/api/song/detail?ids=' + ids, {
-          referer: BASE + '/'
-        })
-        for (const item of detail.songs ?? []) {
-          extras.set(item.id, {
-            coverUrl: item.album?.picUrl ? item.album.picUrl + '?param=120y120' : null,
-            artist: item.artists?.map((artist) => artist.name).join(' / ') || null
-          })
-        }
-      } catch {
-        /* 封面拿不到不影响搜索 */
+    const items: RemoteTrack[] = songs.map((song) => {
+      const cover = song.al?.picUrl
+      return {
+        providerId: 'netease',
+        key: String(song.id),
+        title: song.name,
+        artist: (song.ar ?? []).map((item) => item.name).join(' / '),
+        album: song.al?.name ?? null,
+        durationMs: song.dt ?? null,
+        coverUrl: cover ? cover.replace(/^http:/, 'https:') + '?param=120y120' : null
       }
-    }
+    })
 
-    const result: SearchPage = {
-      items: songs.map((song) => toTrack(song, extras.get(song.id))),
-      total,
-      hasMore: offset + songs.length < total
-    }
+    const result: SearchPage = { items, total, hasMore: offset + songs.length < total }
     searchCache.set(cacheKey, { at: Date.now(), page: result })
     if (searchCache.size > 50) {
       const oldest = searchCache.keys().next().value
@@ -152,7 +136,6 @@ export const neteaseProvider = {
     }
     return result
   },
-
   async stream(key: string): Promise<StreamSource | null> {
     await ensureCookies()
     const candidates = [
