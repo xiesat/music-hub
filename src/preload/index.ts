@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { ProviderApi } from '@shared/provider'
 import type {
   AppInfo,
   DbStats,
@@ -57,6 +58,28 @@ const playlists: PlaylistApi = {
     ipcRenderer.invoke('playlists:reorder', id, orderedTrackIds)
 }
 
+const providers: ProviderApi = {
+  list: () => ipcRenderer.invoke('providers:list'),
+  toggle: (id: string, enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('providers:toggle', id, enabled),
+  search: (providerId: string, keyword: string, page: number) =>
+    ipcRenderer.invoke('providers:search', providerId, keyword, page),
+  stream: (providerId: string, key: string) => ipcRenderer.invoke('providers:stream', providerId, key),
+  lyric: (providerId: string, key: string) => ipcRenderer.invoke('providers:lyric', providerId, key),
+  onlineLyric: (title: string, artist: string | null) =>
+    ipcRenderer.invoke('providers:online-lyric', title, artist),
+  download: (providerId: string, key: string, title: string, artist: string) =>
+    ipcRenderer.invoke('providers:download', providerId, key, title, artist),
+  onDownloadProgress: (listener: (payload: { key: string; received: number; total: number }) => void) => {
+    const handler = (_event: unknown, payload: { key: string; received: number; total: number }): void =>
+      listener(payload)
+    ipcRenderer.on('providers:download-progress', handler)
+    return () => {
+      ipcRenderer.removeListener('providers:download-progress', handler)
+    }
+  }
+}
+
 const settings: SettingsApi = {
   get: <T>(key: string): Promise<T | null> => ipcRenderer.invoke('settings:get', key),
   set: (key: string, value: unknown): Promise<void> => ipcRenderer.invoke('settings:set', key, value)
@@ -68,7 +91,8 @@ const api = {
   library,
   ui,
   settings,
-  playlists
+  playlists,
+  providers
 }
 
 if (process.contextIsolated) {

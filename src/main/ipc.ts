@@ -23,6 +23,15 @@ import {
   renamePlaylist,
   reorderPlaylist
 } from './playlists'
+import {
+  downloadRemoteTrack,
+  listProviders,
+  lyricProvider,
+  onlineLyric,
+  searchProvider,
+  streamProvider,
+  toggleProvider
+} from './providers'
 import { popupTrackMenu } from './track-menu'
 
 export function registerIpc(): void {
@@ -94,6 +103,27 @@ export function registerIpc(): void {
   ipcMain.handle('playlists:reorder', (_event, id: string, orderedTrackIds: string[]) => {
     reorderPlaylist(id, orderedTrackIds)
   })
+
+  ipcMain.handle('providers:list', () => listProviders())
+  ipcMain.handle('providers:toggle', (_event, id: string, enabled: boolean) => {
+    toggleProvider(id, enabled)
+  })
+  ipcMain.handle('providers:search', (_event, id: string, keyword: string, page: number) =>
+    searchProvider(id, keyword, page)
+  )
+  ipcMain.handle('providers:stream', (_event, id: string, key: string) => streamProvider(id, key))
+  ipcMain.handle('providers:lyric', (_event, id: string, key: string) => lyricProvider(id, key))
+  ipcMain.handle('providers:online-lyric', (_event, title: string, artist: string | null) =>
+    onlineLyric(title, artist)
+  )
+  ipcMain.handle(
+    'providers:download',
+    async (event, id: string, key: string, title: string, artist: string) => {
+      return downloadRemoteTrack(id, key, title, artist, (received, total) => {
+        event.sender.send('providers:download-progress', { key, received, total })
+      })
+    }
+  )
 
   ipcMain.handle('ui:reveal', (_event, path: string) => {
     shell.showItemInFolder(path)

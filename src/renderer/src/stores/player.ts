@@ -47,7 +47,8 @@ if (audio) {
 let pendingSeek = 0
 
 function mediaUrl(track: Track): string {
-  return 'media://track/' + encodeURIComponent(track.id)
+  // 在线曲目直接用音源给的流地址；本地曲目走 media:// 协议
+  return track.streamUrl ?? 'media://track/' + encodeURIComponent(track.id)
 }
 
 function loadAndPlay(track: Track | null, startAt = 0): void {

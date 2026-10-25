@@ -201,6 +201,16 @@ async function parseOne(filePath: string, stat: fs.Stats): Promise<UpsertTrackIn
   }
 }
 
+/** 单文件入库（下载完成后调用），返回曲目 id */
+export async function ingestFile(filePath: string): Promise<string> {
+  const stat = await fs.promises.stat(filePath)
+  const parsed = await parseOne(filePath, stat)
+  const existing = loadExistingByPath().get(filePath)
+  if (existing) parsed.id = existing.id
+  upsertTracks([parsed])
+  return parsed.id
+}
+
 export interface ScanOptions {
   onProgress: (progress: ScanProgress) => void
   /** 扫描结束后删除磁盘上已不存在的记录 */

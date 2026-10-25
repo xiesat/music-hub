@@ -38,6 +38,12 @@ export interface Track {
   favorite: boolean
   playCount: number
   createdAt: number
+  /** 在线曲目：直接播放的流地址 */
+  streamUrl?: string
+  /** 在线曲目：封面外链 */
+  coverUrl?: string
+  providerId?: string
+  providerKey?: string
 }
 
 export type TrackSort = 'title' | 'artist' | 'album' | 'addedAt' | 'duration'
@@ -168,4 +174,5 @@ export interface IpcApi {
   ui: UiApi
   settings: SettingsApi
   playlists: PlaylistApi
+  providers: import('./provider').ProviderApi
 }

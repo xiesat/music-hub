@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
-import { Compass, ListMusic, Plug, Search } from 'lucide-react'
-import type { AppInfo, DbStats } from '@shared/types'
-import { InfoPanel } from './components/InfoPanel'
+import { ListMusic, Search } from 'lucide-react'
+import type { AppInfo } from '@shared/types'
 import { LibraryView } from './components/LibraryView'
 import { LyricsView } from './components/LyricsView'
+import { DiscoverView } from './components/DiscoverView'
 import { PlaylistView } from './components/PlaylistView'
+import { ProvidersView } from './components/ProvidersView'
 import { QueuePanel } from './components/QueuePanel'
 import { PlayerBar } from './components/PlayerBar'
 import { Sidebar, type ViewId } from './components/Sidebar'
@@ -27,8 +28,6 @@ export default function App(): JSX.Element {
   const [playlistId, setPlaylistId] = useState<string | null>(null)
   const queueOpen = useUi((state) => state.queueOpen)
   const [app, setApp] = useState<AppInfo | null>(null)
-  const [db, setDb] = useState<DbStats | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   // 启动时恢复上次的播放器状态（音量、模式、队列、进度）
   useEffect(() => {
@@ -46,12 +45,11 @@ export default function App(): JSX.Element {
     let alive = true
     void (async () => {
       try {
-        const [info, stats] = await Promise.all([window.api.getAppInfo(), window.api.getDbStats()])
+        const info = await window.api.getAppInfo()
         if (!alive) return
         setApp(info)
-        setDb(stats)
-      } catch (err) {
-        if (alive) setError((err as Error).message)
+      } catch {
+        // 读取应用信息失败不影响界面启动
       }
     })()
     return () => {
@@ -93,28 +91,19 @@ export default function App(): JSX.Element {
           ) : view === 'library' ? (
             <LibraryView />
           ) : view === 'discover' ? (
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-              <InfoPanel app={app} db={db} error={error} />
-              <section className="mt-5 flex flex-col items-center justify-center gap-2 rounded-xl border border-white/5 bg-ink-850/40 px-4 py-16 text-center">
-                <Compass size={22} className="text-ink-400" />
-                <p className="text-[13px] text-ink-300">多平台搜索尚未接入</p>
-                <p className="max-w-[460px] text-[12px] leading-relaxed text-ink-400">
-                  M3 阶段将接入音源沙箱与首个音源。当前 M1 已完成本地曲库扫描、标签解析与播放器内核。
-                </p>
-              </section>
-            </div>
+            <DiscoverView />
+          ) : view === 'providers' ? (
+            <ProvidersView />
           ) : (
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center">
               {view === 'playlists' ? (
                 <ListMusic size={22} className="text-ink-400" />
-              ) : view === 'providers' ? (
-                <Plug size={22} className="text-ink-400" />
               ) : (
                 <Search size={22} className="text-ink-400" />
               )}
               <p className="text-[13px] text-ink-300">{meta.title}将在后续里程碑实现</p>
               <p className="max-w-[420px] text-[12px] leading-relaxed text-ink-400">
-                详见项目 README 的路线图（M2 歌单、M3 音源、M4 插件、M5 打磨）。
+                详见项目 README 的路线图（M4 脚本音源、M5 打磨）。
               </p>
             </div>
           )}

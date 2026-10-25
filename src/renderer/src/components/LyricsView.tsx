@@ -17,6 +17,7 @@ export function LyricsView(): JSX.Element | null {
   const playSelected = usePlayer((state) => state.playSelected)
 
   const [lrc, setLrc] = useState<string | null>(null)
+  const [online, setOnline] = useState(false)
   const [loading, setLoading] = useState(false)
   const [coverFailed, setCoverFailed] = useState(false)
   const [userScrolled, setUserScrolled] = useState(false)
@@ -38,10 +39,22 @@ export function LyricsView(): JSX.Element | null {
     }
     let alive = true
     setLoading(true)
+    setOnline(false)
     void window.api.library
       .lyric(trackId)
-      .then((result) => {
-        if (alive) setLrc(result?.lrc ?? null)
+      .then(async (result) => {
+        const local = result?.lrc ?? null
+        if (!alive) return
+        if (local) {
+          setLrc(local)
+          return
+        }
+        setLrc(null)
+        if (!display) return
+        const remote = await window.api.providers.onlineLyric(display.title, display.artist)
+        if (!alive) return
+        setLrc(remote.lrc)
+        setOnline(Boolean(remote.lrc))
       })
       .catch(() => {
         if (alive) setLrc(null)
@@ -103,10 +116,10 @@ export function LyricsView(): JSX.Element | null {
   return (
     <section className="fixed inset-x-0 top-11 bottom-[76px] z-30 overflow-hidden bg-ink-950/95">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {display?.coverPath && !coverFailed ? (
+        {display && (display.coverPath || display.coverUrl) && !coverFailed ? (
           <img
             key={display.id}
-            src={'media://cover/' + encodeURIComponent(display.id)}
+            src={display.coverPath ? 'media://cover/' + encodeURIComponent(display.id) : (display.coverUrl ?? '')}
             alt=""
             className="h-full w-full scale-125 object-cover opacity-25 blur-3xl"
             onError={() => setCoverFailed(true)}
@@ -124,15 +137,20 @@ export function LyricsView(): JSX.Element | null {
             <ArrowLeft size={15} />
             返回曲库
           </button>
-          <span className="text-[11px] text-ink-500">Esc 关闭 · 空格 播放/暂停 · 点击歌词行跳转</span>
+          <span className="flex items-center gap-2 text-[11px] text-ink-500">
+            {online ? (
+              <span className="rounded bg-brand-500/15 px-1.5 py-0.5 text-[10px] text-brand-300">在线歌词</span>
+            ) : null}
+            Esc 关闭 · 空格 播放/暂停 · 点击歌词行跳转
+          </span>
         </header>
         <div className="flex min-h-0 flex-1 gap-10 px-10 pb-8">
           <div className="flex w-[300px] shrink-0 flex-col gap-5">
             <div className="aspect-square w-full overflow-hidden rounded-xl bg-ink-800 ring-1 ring-white/10">
-              {display?.coverPath && !coverFailed ? (
+              {display && (display.coverPath || display.coverUrl) && !coverFailed ? (
                 <img
                   key={display.id}
-                  src={'media://cover/' + encodeURIComponent(display.id)}
+                  src={display.coverPath ? 'media://cover/' + encodeURIComponent(display.id) : (display.coverUrl ?? '')}
                   alt=""
                   className="h-full w-full object-cover"
                   onError={() => setCoverFailed(true)}

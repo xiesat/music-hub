@@ -57,10 +57,10 @@ export function PlayerBar(): JSX.Element {
           title="查看歌词"
           className="group/cover relative h-11 w-11 shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-ink-700 to-ink-800 ring-1 ring-white/5 transition-transform hover:scale-105 disabled:cursor-default"
         >
-          {display && display.coverPath && !coverFailed ? (
+          {display && (display.coverPath || display.coverUrl) && !coverFailed ? (
             <img
               key={display.id}
-              src={'media://cover/' + encodeURIComponent(display.id)}
+              src={display.coverPath ? 'media://cover/' + encodeURIComponent(display.id) : (display.coverUrl ?? '')}
               alt=""
               className="h-full w-full object-cover"
               onError={() => setCoverFailed(true)}
