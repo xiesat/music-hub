@@ -3,3 +3,5 @@ allowBuilds:
   better-sqlite3: true
   esbuild: true
   electron-winstaller: true
+minimumReleaseAgeExclude:
+  - music-metadata@12.3.0

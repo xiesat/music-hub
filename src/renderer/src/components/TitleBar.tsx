@@ -9,7 +9,7 @@ export function TitleBar(): JSX.Element {
         <span className="text-[13px] font-medium tracking-wide text-ink-200">MusicHub</span>
       </div>
       <div className="ml-4 flex-1" />
-      <span className="text-[11px] text-ink-400">M0 · 脚手架</span>
+      <span className="text-[11px] text-ink-400">M1 · 本地曲库</span>
     </header>
   )
 }

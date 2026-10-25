@@ -87,5 +87,18 @@ export const migrations: string[] = [
     key   TEXT PRIMARY KEY,
     value TEXT
   );
+  `,
+
+  `
+  -- v2: 曲库查询索引
+  CREATE INDEX IF NOT EXISTS ix_track_created ON tracks(created_at DESC);
+  CREATE INDEX IF NOT EXISTS ix_track_artist ON tracks(artist);
+  CREATE INDEX IF NOT EXISTS ix_track_album ON tracks(album);
+  `,
+
+  `
+  -- v3: path 改为普通唯一索引（部分索引无法被 ON CONFLICT(path) 命中）
+  DROP INDEX IF EXISTS ux_track_path;
+  CREATE UNIQUE INDEX IF NOT EXISTS ux_track_path ON tracks(path);
   `
 ]

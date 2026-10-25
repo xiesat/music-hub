@@ -7,7 +7,8 @@ const shared = resolve(__dirname, 'src/shared')
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // music-metadata 是 ESM-only，必须打进 bundle，否则运行时 require 会失败
+    plugins: [externalizeDepsPlugin({ exclude: ['music-metadata'] })],
     resolve: { alias: { '@shared': shared } },
     build: {
       rollupOptions: {

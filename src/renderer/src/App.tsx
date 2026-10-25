@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
-import { FolderPlus, Search } from 'lucide-react'
+import { Compass, ListMusic, Plug, Search } from 'lucide-react'
 import type { AppInfo, DbStats } from '@shared/types'
 import { InfoPanel } from './components/InfoPanel'
+import { LibraryView } from './components/LibraryView'
 import { PlayerBar } from './components/PlayerBar'
 import { Sidebar, type ViewId } from './components/Sidebar'
 import { TitleBar } from './components/TitleBar'
 
 const VIEW_META: Record<ViewId, { title: string; desc: string }> = {
   discover: { title: '发现音乐', desc: '接入音源后，这里会展示多平台搜索结果' },
-  library: { title: '本地曲库', desc: '扫描并管理本地音乐文件' },
+  library: { title: '本地曲库', desc: '扫描、搜索与管理本地音乐文件' },
   playlists: { title: '歌单', desc: '创建、编辑与排序你的歌单' },
   downloads: { title: '下载管理', desc: '下载队列、进度与失败重试' },
   providers: { title: '音源插件', desc: '导入 LX / MusicFree 音源脚本并管理健康状态' },
@@ -17,7 +18,7 @@ const VIEW_META: Record<ViewId, { title: string; desc: string }> = {
 }
 
 export default function App(): JSX.Element {
-  const [view, setView] = useState<ViewId>('discover')
+  const [view, setView] = useState<ViewId>('library')
   const [app, setApp] = useState<AppInfo | null>(null)
   const [db, setDb] = useState<DbStats | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -54,38 +55,36 @@ export default function App(): JSX.Element {
               <h1 className="text-[15px] font-medium text-white">{meta.title}</h1>
               <p className="mt-0.5 text-[12px] text-ink-400">{meta.desc}</p>
             </div>
-            <div className="ml-auto flex items-center gap-2">
-              <label className="no-drag flex h-9 w-[260px] items-center gap-2 rounded-lg border border-white/8 bg-ink-850 px-3 text-[12px] text-ink-400 focus-within:border-brand-500/60">
-                <Search size={14} />
-                <input
-                  className="h-full w-full bg-transparent text-ink-100 outline-none placeholder:text-ink-400"
-                  placeholder="搜索歌曲、歌手、专辑"
-                  disabled
-                />
-              </label>
-              <button className="no-drag flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-3 text-[12px] font-medium text-ink-950 transition-colors hover:bg-brand-400">
-                <FolderPlus size={14} />
-                导入目录
-              </button>
-            </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            <InfoPanel app={app} db={db} error={error} />
-
-            <section className="mt-5 rounded-xl border border-white/5 bg-ink-850/40">
-              <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
-                <span className="text-[12px] font-medium text-ink-200">曲库</span>
-                <span className="text-[11px] text-ink-400">0 首</span>
-              </div>
-              <div className="flex flex-col items-center justify-center gap-2 px-4 py-16 text-center">
-                <p className="text-[13px] text-ink-300">曲库还是空的</p>
-                <p className="max-w-[420px] text-[12px] leading-relaxed text-ink-400">
-                  M1 阶段将实现目录扫描、标签解析与入库。当前 M0 已跑通 Electron 主进程、IPC 桥与 SQLite 数据库。
+          {view === 'library' ? (
+            <LibraryView />
+          ) : view === 'discover' ? (
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              <InfoPanel app={app} db={db} error={error} />
+              <section className="mt-5 flex flex-col items-center justify-center gap-2 rounded-xl border border-white/5 bg-ink-850/40 px-4 py-16 text-center">
+                <Compass size={22} className="text-ink-400" />
+                <p className="text-[13px] text-ink-300">多平台搜索尚未接入</p>
+                <p className="max-w-[460px] text-[12px] leading-relaxed text-ink-400">
+                  M3 阶段将接入音源沙箱与首个音源。当前 M1 已完成本地曲库扫描、标签解析与播放器内核。
                 </p>
-              </div>
-            </section>
-          </div>
+              </section>
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center">
+              {view === 'playlists' ? (
+                <ListMusic size={22} className="text-ink-400" />
+              ) : view === 'providers' ? (
+                <Plug size={22} className="text-ink-400" />
+              ) : (
+                <Search size={22} className="text-ink-400" />
+              )}
+              <p className="text-[13px] text-ink-300">{meta.title}将在后续里程碑实现</p>
+              <p className="max-w-[420px] text-[12px] leading-relaxed text-ink-400">
+                详见项目 README 的路线图（M2 歌单、M3 音源、M4 插件、M5 打磨）。
+              </p>
+            </div>
+          )}
         </main>
       </div>
 
