@@ -14,7 +14,19 @@ import { ingestFile } from '../library/scanner'
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { getSetting } from '../settings'
 import { httpRequest } from './http'
-import { callScriptProvider, disposeScriptProvider, getScriptPlatform } from './sandbox'
+import {
+  callScriptProvider,
+  disposeScriptProvider,
+  getScriptMeta,
+  getScriptPlatform,
+  type ProviderAuthInput
+} from './sandbox'
+import {
+  clearCredential,
+  loadCredential,
+  loginProvider,
+  updateCredentialProfile
+} from '../auth'
 
 interface BuiltinProvider {
   info: ProviderInfo
@@ -46,6 +58,40 @@ interface ScriptRow {
   last_error: string | null
 }
 
+function authFor(providerId: string): ProviderAuthInput | undefined {
+  const credential = loadCredential(providerId)
+  if (!credential) return undefined
+  return { cookies: credential.cookies, uid: credential.uid, nickname: credential.nickname }
+}
+
+export interface ProviderAuthState {
+  loggedIn: boolean
+  uid: string | null
+  nickname: string | null
+  loginType: string | null
+  loginUrl: string | null
+}
+
+export async function getProviderAuthState(id: string): Promise<ProviderAuthState> {
+  const credential = loadCredential(id)
+  const row = getDb().prepare('SELECT script_path FROM providers WHERE id = ?').get(id) as
+    | { script_path: string | null }
+    | undefined
+
+  // 脚本还没加载过时先加载一次，否则拿不到它声明的登录配置
+  if (row?.script_path && !getScriptMeta(row.script_path)) {
+    await callScriptProvider(row.script_path, 'search', [''], 8000, authFor(id)).catch(() => undefined)
+  }
+  const meta = row?.script_path ? getScriptMeta(row.script_path) : null
+  return {
+    loggedIn: Boolean(credential),
+    uid: credential?.uid ?? null,
+    nickname: credential?.nickname ?? null,
+    loginType: meta?.login?.type ?? null,
+    loginUrl: meta?.login?.url ?? null
+  }
+}
+
 function scriptRows(): ScriptRow[] {
   return getDb()
     .prepare(
@@ -70,16 +116,20 @@ export function listProviders(): ProviderInfo[] {
     }
   })
 
-  const scripts = scriptRows().map((row) => ({
-    id: row.id,
-    name: row.name,
-    version: row.version ?? '1.0.0',
-    kind: 'script' as const,
-    enabled: row.enabled === 1,
-    capabilities: ['search', 'stream', 'lyric'],
-    lastOkAt: row.last_ok_at,
-    lastError: row.last_error
-  }))
+  const scripts = scriptRows().map((row) => {
+    // 能力以脚本自报为准，未加载时给保守默认值
+    const meta = row.script_path ? getScriptMeta(row.script_path) : null
+    return {
+      id: row.id,
+      name: row.name,
+      version: row.version ?? '1.0.0',
+      kind: 'script' as const,
+      enabled: row.enabled === 1,
+      capabilities: meta?.capabilities?.length ? meta.capabilities : ['search'],
+      lastOkAt: row.last_ok_at,
+      lastError: row.last_error
+    }
+  })
 
   return [...builtinInfos, ...scripts]
 }
@@ -102,9 +152,10 @@ export async function importScriptProvider(sourcePath: string): Promise<Provider
   copyFileSync(sourcePath, target)
 
   const id = 'script:' + fileName.replace(/\.js$/i, '')
-  // 先跑一次极简调用，确认脚本能加载并拿到它自报的平台名
+  // 先跑一次极简调用，确认脚本能加载并拿到它自报的平台名 / 能力
   await callScriptProvider<unknown>(target, 'search', [''], 8000).catch(() => undefined)
   const platform = getScriptPlatform(target)
+  const meta = getScriptMeta(target)
 
   getDb()
     .prepare(
@@ -113,6 +164,9 @@ export async function importScriptProvider(sourcePath: string): Promise<Provider
         ' ON CONFLICT(id) DO UPDATE SET script_path = excluded.script_path, enabled = 1'
     )
     .run(id, platform || fileName.replace(/\.js$/i, ''), target)
+  if (meta) {
+    console.log('[providers] 已加载脚本', id, 'apiVersion=' + meta.apiVersion, meta.login ? '支持登录' : '无需登录')
+  }
 
   const created = listProviders().find((item) => item.id === id)
   if (!created) throw new Error('音源脚本注册失败')
@@ -146,6 +200,59 @@ export async function installBundledScripts(bundledDir: string): Promise<number>
     }
   }
   return installed
+}
+
+/** 打开官方登录页，登录成功即保存 cookie 并刷新该音源的登录态 */
+export async function loginScriptProvider(id: string): Promise<{ ok: boolean; error?: string; canceled?: boolean }> {
+  const row = getDb().prepare('SELECT script_path FROM providers WHERE id = ?').get(id) as
+    | { script_path: string | null }
+    | undefined
+  if (!row?.script_path) throw new Error('音源脚本未安装')
+
+  // 先加载一次脚本，拿到它声明的登录配置
+  if (!getScriptMeta(row.script_path)) {
+    await callScriptProvider(row.script_path, 'search', [''], 8000).catch(() => undefined)
+  }
+  const meta = getScriptMeta(row.script_path)
+  if (!meta?.login) throw new Error('该音源未声明登录方式')
+
+  const result = await loginProvider({
+    providerId: id,
+    url: meta.login.url ?? '',
+    cookies: meta.login.cookies ?? [],
+    warmup: meta.login.warmup
+  })
+  if (!result.ok) {
+    disposeScriptProvider(row.script_path)
+    return result
+  }
+
+  // 用登录后的凭据问脚本要一次用户信息（uid / 昵称），供歌单导入使用
+  disposeScriptProvider(row.script_path)
+  try {
+    const profile = await callScriptProvider<{ uid?: string; nickname?: string } | null>(
+      row.script_path,
+      'me',
+      [],
+      15_000,
+      authFor(id)
+    )
+    if (profile) {
+      await updateCredentialProfile(id, { uid: profile.uid, nickname: profile.nickname })
+    }
+  } catch {
+    /* 脚本没实现 me 时忽略 */
+  }
+
+  return { ok: true }
+}
+
+export function logoutScriptProvider(id: string): void {
+  const row = getDb().prepare('SELECT script_path FROM providers WHERE id = ?').get(id) as
+    | { script_path: string | null }
+    | undefined
+  if (row?.script_path) disposeScriptProvider(row.script_path)
+  clearCredential(id)
 }
 
 export function removeScriptProvider(id: string): void {
@@ -203,7 +310,13 @@ interface ScriptTrack {
 export async function searchProvider(id: string, keyword: string, page = 1): Promise<SearchPage> {
   const script = scriptFor(id)
   if (script?.script_path) {
-    const raw = await callScriptProvider<ScriptTrack[]>(script.script_path, 'search', [keyword, page])
+    const raw = await callScriptProvider<ScriptTrack[]>(
+      script.script_path,
+      'search',
+      [keyword, page],
+      15_000,
+      authFor(id)
+    )
     const items = (Array.isArray(raw) ? raw : []).map((item) => ({
       providerId: id,
       key: String(item.id ?? ''),
@@ -286,7 +399,13 @@ export async function streamProvider(
   const script = scriptFor(id)
   if (script?.script_path) {
     try {
-      const raw = await callScriptProvider<{ url?: string } | null>(script.script_path, 'getMediaSource', [{ id: key }])
+      const raw = await callScriptProvider<{ url?: string } | null>(
+        script.script_path,
+        'getMediaSource',
+        [{ id: key }],
+        20_000,
+        authFor(id)
+      )
       if (!raw?.url) return null
       return { url: raw.url, mime: null, expiresAt: null }
     } catch {
@@ -328,7 +447,9 @@ export async function lyricProvider(id: string, key: string): Promise<LyricResul
       const raw = await callScriptProvider<{ lrc?: string } | string | null>(
         script.script_path,
         'getLyric',
-        [{ id: key }]
+        [{ id: key }],
+        15_000,
+        authFor(id)
       )
       const lrc = typeof raw === 'string' ? raw : (raw?.lrc ?? null)
       return { lrc: lrc?.trim() || null, translated: null }

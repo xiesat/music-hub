@@ -173,6 +173,12 @@ export interface PlaylistQuery {
 
 export type PlatformId = 'netease' | 'qq'
 
+export interface PlatformAuthStateLike {
+  loggedIn: boolean
+  uid?: string | null
+  nickname?: string | null
+}
+
 export interface PlatformPlaylist {
   id: string
   name: string

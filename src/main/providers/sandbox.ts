@@ -1,16 +1,36 @@
-// 脚本音源沙箱：worker_threads + vm 上下文，脚本拿不到 require/fs/process
+// 脚本音源沙箱：worker_threads + vm，脚本拿不到 require/fs/process
+// v2 协议：方法第一个参数是 ctx（提供 request / crypto / auth / 日志），v1 脚本仍按老签名调用
 import { Worker } from 'node:worker_threads'
+import type { StoredCookie } from '../auth'
 
-/** 在 worker 内执行的引导代码：加载脚本、构造受限全局、转发调用 */
 const WORKER_BOOTSTRAP = `
 const { parentPort, workerData } = require('node:worker_threads')
 const fs = require('node:fs')
 const vm = require('node:vm')
+const nodeCrypto = require('node:crypto')
 
 function send(message) { parentPort.postMessage(message) }
 
-// worker 内的简易 cookie 罐（音源脚本需要登录态/游客态时用）
+// ---------- cookie 罐（按域名匹配） ----------
 const cookieJar = new Map()
+
+function domainMatches(host, domain) {
+  const clean = String(domain || '').replace(/^\./, '')
+  if (!clean) return false
+  return host === clean || host.endsWith('.' + clean)
+}
+
+function seedCookies(list) {
+  if (!Array.isArray(list)) return
+  for (const item of list) {
+    const domain = item.domain || ''
+    if (!domain) continue
+    const key = domain.replace(/^\./, '')
+    const jar = cookieJar.get(key) || new Map()
+    jar.set(item.name, item.value)
+    cookieJar.set(key, jar)
+  }
+}
 
 function absorbCookies(url, response) {
   try {
@@ -30,13 +50,21 @@ function absorbCookies(url, response) {
 
 function cookieHeader(url) {
   try {
-    const jar = cookieJar.get(new URL(url).hostname)
-    if (!jar || jar.size === 0) return ''
-    return Array.from(jar.entries()).map(function (kv) { return kv[0] + '=' + kv[1] }).join('; ')
+    const host = new URL(url).hostname
+    const pairs = []
+    for (const [domain, jar] of cookieJar) {
+      if (!domainMatches(host, domain)) continue
+      for (const [name, value] of jar) pairs.push(name + '=' + value)
+    }
+    return pairs.join('; ')
   } catch (e) { return '' }
 }
 
-// 只允许 http/https，且拦截本地/内网地址
+seedCookies(workerData.auth && workerData.auth.cookies)
+
+// ---------- 受限 fetch ----------
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
 async function safeFetch(input, init) {
   let target = String(input)
   if (!/^https?:\\/\\//i.test(target)) throw new Error('只允许 http/https 请求')
@@ -44,7 +72,8 @@ async function safeFetch(input, init) {
   if (/^(localhost|127\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)/.test(host)) {
     throw new Error('不允许访问内网地址: ' + host)
   }
-  const headers = Object.assign({}, (init && init.headers) || {})
+
+  const headers = Object.assign({ 'User-Agent': UA }, (init && init.headers) || {})
   const cookie = cookieHeader(target)
   if (cookie && !headers.Cookie && !headers.cookie) headers.Cookie = cookie
 
@@ -64,19 +93,122 @@ async function safeFetch(input, init) {
   }
 }
 
+// ---------- ctx（v2 协议） ----------
+function buildUrl(url, params) {
+  if (!params) return url
+  const query = Object.keys(params)
+    .filter(function (k) { return params[k] !== undefined && params[k] !== null })
+    .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k])) })
+    .join('&')
+  if (!query) return url
+  return url + (url.indexOf('?') >= 0 ? '&' : '?') + query
+}
+
+const auth = workerData.auth || null
+
+const ctx = {
+  auth: {
+    me: auth && auth.uid ? { uid: auth.uid, nickname: auth.nickname || '' } : null,
+    loggedIn: Boolean(auth && auth.cookies && auth.cookies.length),
+    // 只返回本音源自己的 cookie，且按名字取，避免脚本拿到整份凭据
+    get: function (name) {
+      if (!auth || !Array.isArray(auth.cookies)) return null
+      const found = auth.cookies.find(function (item) { return item.name === name })
+      return found ? found.value : null
+    }
+  },
+  get: async function (url, params, options) {
+    const opts = options || {}
+    const response = await safeFetch(buildUrl(url, params), {
+      headers: Object.assign({ Referer: opts.referer || '' }, opts.headers || {}),
+      method: 'GET'
+    })
+    return response.json()
+  },
+  post: async function (url, body, options) {
+    const opts = options || {}
+    const payload =
+      typeof body === 'string'
+        ? body
+        : Object.keys(body || {})
+            .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(String(body[k])) })
+            .join('&')
+    const response = await safeFetch(url, {
+      method: 'POST',
+      headers: Object.assign(
+        { 'Content-Type': 'application/x-www-form-urlencoded', Referer: opts.referer || '' },
+        opts.headers || {}
+      ),
+      body: payload
+    })
+    return response.json()
+  },
+  mapSong: function (raw) {
+    const song = raw || {}
+    const pick = function () {
+      for (let i = 0; i < arguments.length; i++) {
+        const value = song[arguments[i]]
+        if (value !== undefined && value !== null && value !== '') return value
+      }
+      return undefined
+    }
+    const artists =
+      pick('artist', 'singer', 'singername', 'SingerName') ||
+      (song.ar || song.artists || []).map(function (a) { return a.name }).join(' / ')
+    const album = pick('album', 'albumname', 'AlbumName') || (song.al ? song.al.name : '')
+    const cover = pick('cover', 'pic', 'picUrl') || (song.al ? song.al.picUrl : '') || (song.album ? song.album.picUrl : '')
+    const duration = pick('duration', 'dt', 'interval')
+    return {
+      id: String(pick('id', 'mid', 'songmid', 'hash', 'FileHash') || ''),
+      title: pick('title', 'name', 'songname', 'SongName') || '未知标题',
+      artist: Array.isArray(artists) ? artists.join(' / ') : String(artists || ''),
+      album: String(album || ''),
+      duration: typeof duration === 'number' ? duration : null,
+      cover: cover ? String(cover).replace(/^http:/, 'https:') : ''
+    }
+  },
+  error: function (code, message) {
+    const error = new Error(message || code)
+    error.code = code
+    return error
+  },
+  log: function () {
+    send({ type: 'log', args: Array.prototype.slice.call(arguments).map(String) })
+  },
+  crypto: {
+    md5: function (text, encoding) {
+      return nodeCrypto.createHash('md5').update(String(text), encoding || 'utf8').digest('hex')
+    },
+    sha1: function (text) {
+      return nodeCrypto.createHash('sha1').update(String(text), 'utf8').digest('hex')
+    },
+    base64: function (text) { return Buffer.from(String(text)).toString('base64') },
+    aesEcb: function (text, key) {
+      const cipher = nodeCrypto.createCipheriv('aes-128-ecb', Buffer.from(key), null)
+      return Buffer.concat([cipher.update(Buffer.from(text)), cipher.final()]).toString('base64')
+    },
+    aesCbc: function (text, key, iv) {
+      const cipher = nodeCrypto.createCipheriv('aes-128-cbc', Buffer.from(key), Buffer.from(iv))
+      return Buffer.concat([cipher.update(Buffer.from(text)), cipher.final()]).toString('base64')
+    },
+    randomHex: function (size) { return nodeCrypto.randomBytes(size || 8).toString('hex') }
+  }
+}
+
+// ---------- 沙箱全局 ----------
 const sandbox = {
-  console: { log: (...args) => send({ type: 'log', args: args.map(String) }), error: (...args) => send({ type: 'log', args: args.map(String) }) },
+  console: {
+    log: function () { send({ type: 'log', args: Array.prototype.slice.call(arguments).map(String) }) },
+    error: function () { send({ type: 'log', args: Array.prototype.slice.call(arguments).map(String) }) }
+  },
   fetch: safeFetch,
-  URL,
-  URLSearchParams,
-  TextDecoder,
-  TextEncoder,
-  setTimeout,
-  clearTimeout,
-  btoa: (value) => Buffer.from(value, 'binary').toString('base64'),
-  atob: (value) => Buffer.from(value, 'base64').toString('binary'),
-  crypto: { randomUUID: () => require('node:crypto').randomUUID() },
-  Promise, Math, Date, JSON, Object, Array, String, Number, Boolean, RegExp, Error, isNaN, parseInt, parseFloat, encodeURIComponent, decodeURIComponent
+  URL, URLSearchParams, TextDecoder, TextEncoder, setTimeout, clearTimeout,
+  btoa: (v) => Buffer.from(v, 'binary').toString('base64'),
+  atob: (v) => Buffer.from(v, 'base64').toString('binary'),
+  crypto: { randomUUID: () => nodeCrypto.randomUUID() },
+  ctx: ctx,
+  Promise, Math, Date, JSON, Object, Array, String, Number, Boolean, RegExp, Error,
+  isNaN, parseInt, parseFloat, encodeURIComponent, decodeURIComponent
 }
 
 const context = vm.createContext(sandbox)
@@ -84,36 +216,49 @@ const context = vm.createContext(sandbox)
 try {
   const source = fs.readFileSync(workerData.scriptPath, 'utf8')
   const module = { exports: {} }
-  const wrapper = '(function (module, exports) {\\n' + source + '\\n})'
+  const wrapper = '(function (module, exports, ctx) {\\n' + source + '\\n})'
   const fn = vm.runInContext(wrapper, context, { filename: workerData.scriptPath, timeout: 3000 })
-  fn(module, module.exports)
+  fn(module, module.exports, ctx)
   const provider = module.exports.default || module.exports
+  const apiVersion = Number(provider && provider.apiVersion) || 1
   if (!provider || typeof provider.search !== 'function') {
     send({ type: 'ready', ok: false, error: '脚本必须导出 search 方法' })
   } else {
-    send({ type: 'ready', ok: true, platform: provider.platform || '' })
-    parentPort.on('message', async (message) => {
-      const { id, method, args } = message
+    send({
+      type: 'ready',
+      ok: true,
+      apiVersion: apiVersion,
+      platform: (provider.platform && provider.platform.name) || provider.platform || '',
+      login: provider.login || null,
+      capabilities: provider.capabilities || []
+    })
+    parentPort.on('message', async function (message) {
+      const id = message.id, method = message.method, args = message.args || []
       try {
-        const fn = provider[method]
-        if (typeof fn !== 'function') {
-          send({ type: 'reply', id, ok: false, error: '脚本未实现 ' + method })
+        const target = provider[method]
+        if (typeof target !== 'function') {
+          send({ type: 'reply', id: id, ok: false, error: '脚本未实现 ' + method })
           return
         }
-        const result = await fn.apply(provider, args)
-        send({ type: 'reply', id, ok: true, result })
+        const result = apiVersion >= 2
+          ? await target.apply(provider, [ctx].concat(args))
+          : await target.apply(provider, args)
+        send({ type: 'reply', id: id, ok: true, result: result })
       } catch (error) {
-        send({ type: 'reply', id, ok: false, error: error && error.message ? error.message : String(error) })
+        send({ type: 'reply', id: id, ok: false, error: (error && error.message) || String(error), code: error && error.code })
       }
     })
   }
 } catch (error) {
-  send({ type: 'ready', ok: false, error: error && error.message ? error.message : String(error) })
+  send({ type: 'ready', ok: false, error: (error && error.message) || String(error) })
 }
 `
 
-export interface SandboxScriptInfo {
+export interface ScriptMeta {
   platform: string
+  apiVersion: number
+  capabilities: string[]
+  login: { type: string; url?: string; cookies?: string[]; warmup?: string } | null
 }
 
 interface PendingCall {
@@ -122,20 +267,34 @@ interface PendingCall {
   timer: NodeJS.Timeout
 }
 
-const workers = new Map<string, Worker>()
-const platforms = new Map<string, string>()
+interface WorkerEntry {
+  worker: Worker
+  meta: ScriptMeta
+}
+
+export interface ProviderAuthInput {
+  cookies: StoredCookie[]
+  uid?: string
+  nickname?: string
+}
+
+const workers = new Map<string, WorkerEntry>()
 const pending = new Map<number, PendingCall>()
 let nextCallId = 1
 
-function createWorker(scriptPath: string): Promise<SandboxScriptInfo> {
+function createWorker(scriptPath: string, auth?: ProviderAuthInput): Promise<ScriptMeta> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(WORKER_BOOTSTRAP, { eval: true, workerData: { scriptPath } })
+    const worker = new Worker(WORKER_BOOTSTRAP, {
+      eval: true,
+      workerData: { scriptPath, auth: auth ?? null }
+    })
+
     const timer = setTimeout(() => {
       void worker.terminate()
       reject(new Error('音源脚本加载超时'))
     }, 5000)
 
-    worker.once('message', (message: { type: string; ok: boolean; error?: string; platform?: string }) => {
+    worker.once('message', (message: any) => {
       clearTimeout(timer)
       if (message.type !== 'ready') return
       if (!message.ok) {
@@ -143,18 +302,33 @@ function createWorker(scriptPath: string): Promise<SandboxScriptInfo> {
         reject(new Error(message.error ?? '脚本加载失败'))
         return
       }
-      platforms.set(scriptPath, message.platform ?? '')
-      resolve({ platform: message.platform ?? '' })
+      const meta: ScriptMeta = {
+        platform: message.platform ?? '',
+        apiVersion: message.apiVersion ?? 1,
+        capabilities: message.capabilities ?? [],
+        login: message.login ?? null
+      }
+      workers.set(scriptPath, { worker, meta })
+      resolve(meta)
     })
 
-    worker.on('message', (message: { type: string; id?: number; ok?: boolean; result?: unknown; error?: string }) => {
+    worker.on('message', (message: any) => {
+      if (message.type === 'log') {
+        console.log('[provider]', ...(message.args ?? []))
+        return
+      }
       if (message.type !== 'reply' || message.id === undefined) return
       const call = pending.get(message.id)
       if (!call) return
       pending.delete(message.id)
       clearTimeout(call.timer)
-      if (message.ok) call.resolve(message.result)
-      else call.reject(new Error(message.error ?? '脚本调用失败'))
+      if (message.ok) {
+        call.resolve(message.result)
+      } else {
+        const error = new Error(message.error ?? '脚本调用失败') as Error & { code?: string }
+        error.code = message.code
+        call.reject(error)
+      }
     })
 
     worker.on('error', (error) => {
@@ -168,65 +342,61 @@ function createWorker(scriptPath: string): Promise<SandboxScriptInfo> {
         call.reject(new Error('音源脚本进程已退出 (code ' + code + ')'))
         pending.delete(id)
       }
-      for (const [path, item] of workers) {
-        if (item === worker) workers.delete(path)
-      }
+      const entry = workers.get(scriptPath)
+      if (entry && entry.worker === worker) workers.delete(scriptPath)
     })
-
-    workers.set(scriptPath, worker)
   })
 }
 
-async function getWorker(scriptPath: string): Promise<Worker> {
+async function getWorker(scriptPath: string, auth?: ProviderAuthInput): Promise<WorkerEntry> {
   const existing = workers.get(scriptPath)
   if (existing) return existing
-  await createWorker(scriptPath)
-  const worker = workers.get(scriptPath)
-  if (!worker) throw new Error('音源脚本启动失败')
-  return worker
+  await createWorker(scriptPath, auth)
+  const entry = workers.get(scriptPath)
+  if (!entry) throw new Error('音源脚本启动失败')
+  return entry
 }
 
 export async function callScriptProvider<T>(
   scriptPath: string,
   method: string,
   args: unknown[],
-  timeoutMs = 12_000
+  timeoutMs = 12_000,
+  auth?: ProviderAuthInput
 ): Promise<T> {
-  const worker = await getWorker(scriptPath)
+  const entry = await getWorker(scriptPath, auth)
   const id = nextCallId++
 
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       pending.delete(id)
-      // 超时的脚本直接杀掉，避免挂死主进程
-      void worker.terminate()
+      void entry.worker.terminate()
       workers.delete(scriptPath)
       reject(new Error('音源脚本响应超时（' + timeoutMs + 'ms）'))
     }, timeoutMs)
 
-    pending.set(id, {
-      resolve: (value) => resolve(value as T),
-      reject,
-      timer
-    })
-
-    worker.postMessage({ id, method, args })
+    pending.set(id, { resolve: (value) => resolve(value as T), reject, timer })
+    entry.worker.postMessage({ id, method, args })
   })
 }
 
+export function getScriptMeta(scriptPath: string): ScriptMeta | null {
+  return workers.get(scriptPath)?.meta ?? null
+}
+
 export function getScriptPlatform(scriptPath: string): string {
-  return platforms.get(scriptPath) ?? ''
+  return workers.get(scriptPath)?.meta.platform ?? ''
 }
 
 export function disposeScriptProvider(scriptPath: string): void {
-  const worker = workers.get(scriptPath)
-  if (!worker) return
-  void worker.terminate()
+  const entry = workers.get(scriptPath)
+  if (!entry) return
+  void entry.worker.terminate()
   workers.delete(scriptPath)
 }
 
 export function disposeAll(): void {
-  for (const worker of workers.values()) void worker.terminate()
+  for (const entry of workers.values()) void entry.worker.terminate()
   workers.clear()
   pending.clear()
 }

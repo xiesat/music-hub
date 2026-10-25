@@ -6,6 +6,7 @@ import type { Track } from '@shared/types'
 import { useState } from 'react'
 import { formatDuration } from '../lib/format'
 import { useDiscover } from '../stores/discover'
+import { useUi } from '../stores/ui'
 import { usePlayer } from '../stores/player'
 
 function toPlayable(track: RemoteTrack, streamUrl?: string): Track {
@@ -136,17 +137,18 @@ export function DiscoverView(): JSX.Element {
     }
   }
 
+  const requestDownload = useUi((state) => state.requestDownload)
+
   const download = async (track: RemoteTrack): Promise<void> => {
     setBusyKey(track.key)
     useDiscover.setState({ error: null, message: null })
     try {
-      await window.api.downloads.add({
+      requestDownload({
         title: track.title,
         artist: track.artist,
         providerId: track.providerId,
         providerKey: track.key
       })
-      useDiscover.setState({ message: '已加入下载队列，可在「下载管理」查看进度' })
     } catch (err) {
       useDiscover.setState({ error: '下载失败：' + (err as Error).message })
     } finally {

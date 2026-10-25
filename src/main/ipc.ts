@@ -35,7 +35,10 @@ import {
 import { enrichMissingCovers } from './providers/cover-enrich'
 import {
   downloadRemoteTrack,
+  getProviderAuthState,
   importScriptProvider,
+  loginScriptProvider,
+  logoutScriptProvider,
   removeScriptProvider,
   listProviders,
   lyricProvider,
@@ -158,6 +161,12 @@ export function registerIpc(): void {
 
   ipcMain.handle('providers:remove-script', (_event, id: string) => {
     removeScriptProvider(id)
+  })
+
+  ipcMain.handle('providers:auth-state', (_event, id: string) => getProviderAuthState(id))
+  ipcMain.handle('providers:login', (_event, id: string) => loginScriptProvider(id))
+  ipcMain.handle('providers:logout', (_event, id: string) => {
+    logoutScriptProvider(id)
   })
 
   ipcMain.handle('providers:list', () => listProviders())

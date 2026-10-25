@@ -60,6 +60,14 @@ export interface MultiSearchResult {
   sources: ProviderSourceStatus[]
 }
 
+export interface ProviderAuthState {
+  loggedIn: boolean
+  uid: string | null
+  nickname: string | null
+  loginType: string | null
+  loginUrl: string | null
+}
+
 export interface ProviderApi {
   list(): Promise<ProviderInfo[]>
   toggle(id: string, enabled: boolean): Promise<void>
@@ -75,4 +83,7 @@ export interface ProviderApi {
   /** 导入音源脚本（不传路径则弹出文件选择） */
   importScript(path?: string): Promise<ProviderInfo | null>
   removeScript(id: string): Promise<void>
+  authState(id: string): Promise<ProviderAuthState>
+  login(id: string): Promise<{ ok: boolean; error?: string; canceled?: boolean }>
+  logout(id: string): Promise<void>
 }

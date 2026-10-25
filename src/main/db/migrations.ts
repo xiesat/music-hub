@@ -118,5 +118,17 @@ export const migrations: string[] = [
   ALTER TABLE downloads ADD COLUMN artist TEXT;
   ALTER TABLE downloads ADD COLUMN provider_id TEXT;
   ALTER TABLE downloads ADD COLUMN provider_key TEXT;
+  `,
+
+  `
+  -- v7: 音源登录凭据（加密存储）
+  CREATE TABLE IF NOT EXISTS provider_credentials (
+    provider_id TEXT PRIMARY KEY,
+    payload     TEXT NOT NULL,
+    uid         TEXT,
+    nickname    TEXT,
+    saved_at    INTEGER,
+    expires_at  INTEGER
+  );
   `
 ]

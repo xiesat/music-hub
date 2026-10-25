@@ -25,6 +25,18 @@
 - 播放器：队列、上一首/下一首、进度拖拽、音量、顺序/循环/单曲/随机
 - `media://` 自定义协议：支持 HTTP Range（可拖动进度）、CORS、媒体元素直连
 
+## 音源登录（P1/P2）
+
+- 「音源插件」页每个支持登录的平台有 **登录 / 退出** 按钮
+- 登录会打开**平台官方登录页**（账密 / 验证码 / 扫码都在官方页面完成），宿主监听 cookie，
+  出现指定 cookie 即视为成功，只保存声明过的 cookie，并用 Electron `safeStorage` 加密存库
+- 登录后：可读私人歌单、歌单导入不再手填账号；高音质/会员曲目取流成功率提高
+- 下载前会弹出**风险确认弹窗**（版权 / 账号风控），用户确认后才入队
+
+插件 v2 协议（v1 脚本仍兼容）：方法第一个参数是 `ctx`，提供
+`ctx.get/post`（自动 cookie/UA/Referer）、`ctx.mapSong`、`ctx.crypto`（md5/aesCbc/aesEcb）、
+`ctx.auth`（me / loggedIn / get(cookie 名)）、`ctx.error(code)`、`ctx.log`。
+
 ## 音源全部外部化（M4 重构）
 
 平台实现**不再硬编码在 TypeScript 里**，全部是 `resources/providers/*.js` 脚本，启动时自动安装到

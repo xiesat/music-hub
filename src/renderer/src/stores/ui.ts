@@ -11,6 +11,9 @@ interface UiState {
   importOpen: boolean
   openImport: () => void
   closeImport: () => void
+  pendingDownload: { title: string; artist: string; providerId: string; providerKey: string } | null
+  requestDownload: (payload: { title: string; artist: string; providerId: string; providerKey: string }) => void
+  closeDownload: () => void
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -23,5 +26,8 @@ export const useUi = create<UiState>((set) => ({
   closeQueue: () => set({ queueOpen: false }),
   importOpen: false,
   openImport: () => set({ importOpen: true }),
-  closeImport: () => set({ importOpen: false })
+  closeImport: () => set({ importOpen: false }),
+  pendingDownload: null,
+  requestDownload: (payload) => set({ pendingDownload: payload }),
+  closeDownload: () => set({ pendingDownload: null })
 }))

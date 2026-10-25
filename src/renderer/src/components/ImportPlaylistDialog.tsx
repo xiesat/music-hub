@@ -1,7 +1,7 @@
 import type { JSX } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Download, Loader2, X } from 'lucide-react'
-import type { PlatformId, PlatformPlaylist } from '@shared/types'
+import type { PlatformAuthStateLike, PlatformId, PlatformPlaylist } from '@shared/types'
 import { usePlaylists } from '../stores/playlists'
 import { useUi } from '../stores/ui'
 
@@ -25,12 +25,30 @@ export function ImportPlaylistDialog({ onImported }: Props): JSX.Element | null 
   const [items, setItems] = useState<PlatformPlaylist[]>([])
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [auth, setAuth] = useState<PlatformAuthStateLike | null>(null)
+
+  // 平台登录态：登录后可省略账号输入，直接列「我的歌单」
+  useEffect(() => {
+    if (!open) return
+    let alive = true
+    void window.api.providers
+      .authState('script:' + platform)
+      .then((state) => {
+        if (alive) setAuth(state)
+      })
+      .catch(() => {
+        if (alive) setAuth(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [open, platform, items.length])
 
   if (!open) return null
 
   const lookup = async (): Promise<void> => {
     const value = account.trim()
-    if (!value) return
+    if (!value && !(auth && auth.loggedIn)) return
     setLoading(true)
     setError(null)
     setMessage(null)
@@ -110,9 +128,22 @@ export function ImportPlaylistDialog({ onImported }: Props): JSX.Element | null 
             onKeyDown={(event) => {
               if (event.key === 'Enter') void lookup()
             }}
-            placeholder={platform === "netease" ? "网易云用户 ID 或歌单 ID" : "QQ 号或歌单 ID"}
+            placeholder={
+              auth && auth.loggedIn
+                ? "已登录，留空即加载「我的歌单」；也可填歌单 ID"
+                : platform === "netease"
+                  ? "网易云用户 ID 或歌单 ID（登录后可留空）"
+                  : "QQ 号或歌单 ID（登录后可留空）"
+            }
             className="h-9 flex-1 rounded-lg border border-white/8 bg-ink-850 px-3 text-[12px] text-ink-100 outline-none placeholder:text-ink-400 focus:border-brand-500/60"
           />
+          {auth && auth.loggedIn ? (
+            <span className="shrink-0 rounded bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300">
+              已登录 {auth.nickname || auth.uid || ''}
+            </span>
+          ) : (
+            <span className="shrink-0 text-[10px] text-ink-500">未登录</span>
+          )}
           <button
             onClick={() => void lookup()}
             disabled={loading}

@@ -79,6 +79,9 @@ const providers: ProviderApi = {
     ipcRenderer.invoke('providers:download', providerId, key, title, artist),
   importScript: (path?: string) => ipcRenderer.invoke('providers:import-script', path),
   removeScript: (id: string): Promise<void> => ipcRenderer.invoke('providers:remove-script', id),
+  authState: (id: string) => ipcRenderer.invoke('providers:auth-state', id),
+  login: (id: string) => ipcRenderer.invoke('providers:login', id),
+  logout: (id: string): Promise<void> => ipcRenderer.invoke('providers:logout', id),
   onDownloadProgress: (listener: (payload: { key: string; received: number; total: number }) => void) => {
     const handler = (_event: unknown, payload: { key: string; received: number; total: number }): void =>
       listener(payload)

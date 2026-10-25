@@ -5,6 +5,7 @@ import type { AppInfo } from '@shared/types'
 import { LibraryView } from './components/LibraryView'
 import { LyricsView } from './components/LyricsView'
 import { DiscoverView } from './components/DiscoverView'
+import { DownloadRiskDialog } from './components/DownloadRiskDialog'
 import { DownloadsView } from './components/DownloadsView'
 import { ImportPlaylistDialog } from './components/ImportPlaylistDialog'
 import { PlaylistView } from './components/PlaylistView'
@@ -117,6 +118,7 @@ export default function App(): JSX.Element {
       <PlayerBar />
       <LyricsView />
       <QueuePanel />
+      <DownloadRiskDialog />
       <ImportPlaylistDialog
         onImported={(id) => {
           setPlaylistId(id)
