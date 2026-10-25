@@ -28,6 +28,12 @@ interface DiscoverState {
 
 const PAGE_SIZE = 30
 
+function cleanError(message: string): string {
+  return message
+    .replace(/^Error invoking remote method '[^']+':\s*/, '')
+    .replace(/^Error:\s*/, '')
+}
+
 export const useDiscover = create<DiscoverState>((set, get) => ({
   providerId: 'netease',
   keyword: '',
@@ -65,7 +71,7 @@ export const useDiscover = create<DiscoverState>((set, get) => ({
         scrollTop: reset ? 0 : get().scrollTop
       })
     } catch (error) {
-      set({ error: (error as Error).message, items: reset ? [] : items })
+      set({ error: cleanError((error as Error).message), items: reset ? [] : items })
     } finally {
       set({ loading: false })
     }

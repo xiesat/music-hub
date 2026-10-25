@@ -146,7 +146,10 @@ export async function enrichMissingCovers(
 
       assignMeta(row, changed ? coverPath : null, nextArtist, nextAlbum)
       filled += 1
-    } catch {
+    } catch (error) {
+      const message = (error as Error).message
+      // 被风控时立刻停止，避免继续加压导致更久的封禁
+      if (message.includes('频繁')) break
       /* 单曲失败不影响其它曲目 */
     }
   }

@@ -45,7 +45,23 @@ export interface RequestOptions {
   referer?: string
 }
 
+// 简单节流：两次请求之间至少间隔 350ms，避免触发平台风控
+const MIN_INTERVAL_MS = 350
+let lastRequestAt = 0
+let queue: Promise<void> = Promise.resolve()
+
+async function throttle(): Promise<void> {
+  const run = queue.then(async () => {
+    const wait = MIN_INTERVAL_MS - (Date.now() - lastRequestAt)
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
+    lastRequestAt = Date.now()
+  })
+  queue = run.catch(() => undefined)
+  await run
+}
+
 export async function httpRequest(url: string, options: RequestOptions = {}): Promise<Response> {
+  await throttle()
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 12_000)
   const headers: Record<string, string> = {

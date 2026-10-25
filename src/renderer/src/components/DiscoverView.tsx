@@ -30,6 +30,7 @@ function toPlayable(track: RemoteTrack, streamUrl?: string): Track {
   }
 }
 
+
 export function DiscoverView(): JSX.Element {
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [busyKey, setBusyKey] = useState<string | null>(null)
@@ -173,7 +174,7 @@ export function DiscoverView(): JSX.Element {
         {items.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             <Search size={22} className="text-ink-600" />
-            <p className="text-[13px] text-ink-300">{searched ? "没有搜到结果" : "搜索在线音乐"}</p>
+            <p className="text-[13px] text-ink-300">{error ? "搜索失败" : searched ? "没有搜到结果" : "搜索在线音乐"}</p>
             <p className="max-w-[440px] text-[12px] leading-relaxed text-ink-400">
               单击一行可在播放栏预览，双击直接播放；下载后会自动写入曲库。
             </p>

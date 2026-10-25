@@ -39,6 +39,26 @@ interface UrlResponse {
 
 let cookieReadyAt = 0
 
+interface CacheEntry {
+  at: number
+  page: SearchPage
+}
+
+const searchCache = new Map<string, CacheEntry>()
+const SEARCH_TTL_MS = 3 * 60 * 1000
+
+/** 把平台返回的错误码翻译成人能看懂的原因 */
+function assertOk(code: number | undefined, fallback: string): void {
+  if (code === 200 || code === undefined) return
+  if (code === 405 || code === -460) {
+    throw new Error('请求过于频繁，请稍后再试（平台风控）')
+  }
+  if (code === 400 || code === 403) {
+    throw new Error('平台拒绝了这次请求（可能需要登录）')
+  }
+  throw new Error(fallback + '（code ' + code + '）')
+}
+
 /** 先访问一次首页拿游客 cookie，之后接口才会返回播放地址 */
 async function ensureCookies(): Promise<void> {
   if (Date.now() - cookieReadyAt < 20 * 60 * 1000) return
@@ -82,6 +102,10 @@ export const neteaseProvider = {
   } satisfies ProviderInfo,
 
   async search(keyword: string, page: number): Promise<SearchPage> {
+    const cacheKey = keyword.trim().toLowerCase() + '#' + page
+    const cached = searchCache.get(cacheKey)
+    if (cached && Date.now() - cached.at < SEARCH_TTL_MS) return cached.page
+
     const limit = 30
     const offset = Math.max(0, (page - 1) * limit)
     const url =
@@ -93,6 +117,7 @@ export const neteaseProvider = {
       '&offset=' +
       offset
     const json = await httpJson<SearchResponse>(url, { referer: BASE + '/' })
+    assertOk(json.code, '搜索失败')
     const songs = json.result?.songs ?? []
     const total = json.result?.songCount ?? songs.length
 
@@ -115,11 +140,17 @@ export const neteaseProvider = {
       }
     }
 
-    return {
+    const result: SearchPage = {
       items: songs.map((song) => toTrack(song, extras.get(song.id))),
       total,
       hasMore: offset + songs.length < total
     }
+    searchCache.set(cacheKey, { at: Date.now(), page: result })
+    if (searchCache.size > 50) {
+      const oldest = searchCache.keys().next().value
+      if (oldest) searchCache.delete(oldest)
+    }
+    return result
   },
 
   async stream(key: string): Promise<StreamSource | null> {
@@ -150,6 +181,7 @@ export const neteaseProvider = {
   async lyric(key: string): Promise<LyricResult> {
     const url = BASE + '/api/song/lyric?id=' + key + '&lv=1&kv=1&tv=-1'
     const json = await httpJson<LyricResponse>(url, { referer: BASE + '/' })
+    assertOk(json.code, '获取歌词失败')
     return {
       lrc: json.lrc?.lyric?.trim() || null,
       translated: json.tlyric?.lyric?.trim() || null
