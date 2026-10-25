@@ -165,7 +165,6 @@ module.exports = {
       throw ctx.error('FAILED', '歌单查询失败 code ' + info.code)
     }
 
-    ctx.log('[qq] byUin=' + JSON.stringify(info).slice(0, 900))
     var data = (info && info.data) || {}
     var v = data.v_playlist || data.playlist || []
     var list = []

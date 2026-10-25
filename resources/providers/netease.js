@@ -23,14 +23,22 @@ module.exports = {
 
   // 登录后问宿主用的：返回 uid 和昵称，歌单导入直接用
   async me(ctx) {
-    try {
-      const json = await ctx.get(BASE + '/api/nuser/account/get', {}, { referer: BASE + '/' })
-      const profile = json && json.profile
-      if (!profile) return null
-      return { uid: String(profile.userId || ''), nickname: profile.nickname || '' }
-    } catch (e) {
-      return null
+    const endpoints = [
+      '/api/nuser/account/get',
+      '/api/w/nuser/account/get',
+      '/api/v1/user/account'
+    ]
+    for (let i = 0; i < endpoints.length; i++) {
+      try {
+        const json = await ctx.get(BASE + endpoints[i], {}, { referer: BASE + '/' })
+        const profile = json && (json.profile || json.account)
+        if (profile && (profile.userId || profile.id)) {
+          return { uid: String(profile.userId || profile.id), nickname: profile.nickname || profile.userName || '' }
+        }
+      } catch (e) {
+      }
     }
+    return null
   },
 
   async search(ctx, query, page) {
@@ -59,19 +67,37 @@ module.exports = {
   },
 
   async getMediaSource(ctx, track) {
-    // 有登录态时先试高音质（会员账号才会真的给）
-    const levels = ctx.auth.loggedIn ? ['lossless', 'exhigh', 'standard'] : ['standard']
-    for (let i = 0; i < levels.length; i++) {
+    // 音质要按「等级 + 编码」配套降级，standard 却要 flac 会直接返回空
+    var attempts = ctx.auth.loggedIn
+      ? [
+          { level: 'lossless', enc: 'flac' },
+          { level: 'exhigh', enc: 'mp3' },
+          { level: 'standard', enc: 'mp3' }
+        ]
+      : [{ level: 'standard', enc: 'mp3' }]
+
+    for (var i = 0; i < attempts.length; i++) {
       try {
-        const json = await ctx.get(
+        var json = await ctx.get(
           BASE + '/api/song/enhance/player/url/v1',
-          { ids: '%5B' + track.id + '%5D', level: levels[i], encodeType: 'flac' },
+          { ids: '[' + track.id + ']', level: attempts[i].level, encodeType: attempts[i].enc },
           { referer: BASE + '/' }
         )
-        const first = json && json.data && json.data[0]
+        var first = json && json.data && json.data[0]
         if (first && first.url) return { url: first.url }
       } catch (e) {}
     }
+
+    // 兜底：老的 bitrate 接口
+    try {
+      var legacy = await ctx.get(
+        BASE + '/api/song/enhance/player/url',
+        { ids: '[' + track.id + ']', br: 320000 },
+        { referer: BASE + '/' }
+      )
+      var item = legacy && legacy.data && legacy.data[0]
+      if (item && item.url) return { url: item.url }
+    } catch (e) {}
     return null
   },
 

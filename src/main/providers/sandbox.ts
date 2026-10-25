@@ -15,7 +15,9 @@ function send(message) { parentPort.postMessage(message) }
 const cookieJar = new Map()
 
 function domainMatches(host, domain) {
-  const clean = String(domain || '').replace(/^\./, '')
+  const raw = String(domain || '')
+  // 同样不能用 /^\./（模板字符串会吃掉转义）
+  const clean = raw.charAt(0) === '.' ? raw.slice(1) : raw
   if (!clean) return false
   return host === clean || host.endsWith('.' + clean)
 }
@@ -25,7 +27,8 @@ function seedCookies(list) {
   for (const item of list) {
     const domain = item.domain || ''
     if (!domain) continue
-    const key = domain.replace(/^\./, '')
+    // 注意：模板字符串里 \. 会被吃掉转义，这里用字符串判断而不是正则
+    const key = domain.charAt(0) === '.' ? domain.slice(1) : domain
     const jar = cookieJar.get(key) || new Map()
     jar.set(item.name, item.value)
     cookieJar.set(key, jar)
