@@ -78,17 +78,46 @@ export interface LibraryStats {
   roots: string[]
 }
 
+/** 右键菜单点击后回传给渲染进程的动作 */
+export type TrackMenuAction =
+  | 'play'
+  | 'play-next'
+  | 'append-queue'
+  | 'favorite'
+  | 'unfavorite'
+  | 'remove'
+
+export interface TrackMenuPayload {
+  ids: string[]
+  favorite: boolean
+}
+
+export interface TrackMenuResult {
+  action: TrackMenuAction
+  ids: string[]
+}
+
 export interface LibraryApi {
   pickFolder(): Promise<string[]>
   scan(): Promise<ScanProgress>
   list(query: TrackQuery): Promise<TrackPage>
   stats(): Promise<LibraryStats>
   removeTrack(id: string): Promise<void>
+  removeTracks(ids: string[]): Promise<void>
+  setFavorite(ids: string[], favorite: boolean): Promise<void>
   onScanProgress(listener: (progress: ScanProgress) => void): () => void
+}
+
+export interface UiApi {
+  /** 弹出原生右键菜单；返回 null 表示用户取消 */
+  showTrackMenu(payload: TrackMenuPayload): Promise<TrackMenuAction | null>
+  /** 在资源管理器中定位文件 */
+  revealInFolder(path: string): Promise<void>
 }
 
 export interface IpcApi {
   getAppInfo(): Promise<AppInfo>
   getDbStats(): Promise<DbStats>
   library: LibraryApi
+  ui: UiApi
 }

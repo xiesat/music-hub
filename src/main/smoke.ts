@@ -35,6 +35,7 @@ export async function runSmokeTest(win: BrowserWindow): Promise<void> {
       const library = await runLibraryChecks(fixtures)
       result.library = library
       result.audio = await runAudioChecks(win, library)
+      result.mutations = await runMutationChecks(win, library)
     }
 
     result.ok = true
@@ -55,6 +56,7 @@ interface LibraryReport {
   tagged: number
   sample: unknown[]
   firstTrackId: string | null
+  sampleIds: string[]
 }
 
 async function runLibraryChecks(fixtures: string): Promise<LibraryReport> {
@@ -91,8 +93,44 @@ async function runLibraryChecks(fixtures: string): Promise<LibraryReport> {
       durationMs: item.durationMs,
       format: item.format
     })),
-    firstTrackId: page.items[0]?.id ?? null
+    firstTrackId: page.items[0]?.id ?? null,
+    sampleIds: page.items.map((item) => item.id)
   }
+}
+
+/** 通过 preload 桥验证收藏 / 批量移除，确保 IPC 契约端到端可用 */
+async function runMutationChecks(
+  win: BrowserWindow,
+  library: LibraryReport
+): Promise<Record<string, unknown>> {
+  const ids = library.sampleIds
+  if (ids.length < 2) return { skipped: '样本不足' }
+
+  const script = `(async () => {
+    const ids = ${JSON.stringify(ids.slice(0, 2))}
+    const api = window.api
+    await api.library.setFavorite(ids, true)
+    const afterFavorite = await api.library.list({ offset: 0, limit: 50 })
+    const favorited = afterFavorite.items.filter((item) => ids.includes(item.id) && item.favorite).length
+
+    await api.library.setFavorite(ids, false)
+    const afterUnfavorite = await api.library.list({ offset: 0, limit: 50 })
+    const stillFavorite = afterUnfavorite.items.filter((item) => ids.includes(item.id) && item.favorite).length
+
+    const before = afterUnfavorite.total
+    await api.library.removeTracks([ids[0]])
+    const afterRemove = await api.library.list({ offset: 0, limit: 50 })
+
+    return {
+      favorited,
+      stillFavorite,
+      totalBefore: before,
+      totalAfter: afterRemove.total,
+      uiApi: typeof api.ui.showTrackMenu
+    }
+  })()`
+
+  return win.webContents.executeJavaScript(script)
 }
 
 async function runAudioChecks(

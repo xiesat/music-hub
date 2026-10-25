@@ -1,4 +1,5 @@
 import type { JSX } from 'react'
+import { Heart, Play } from 'lucide-react'
 import type { Track, TrackSort } from '@shared/types'
 import { useVirtualRows } from '../hooks/useVirtualRows'
 import { formatDuration } from '../lib/format'
@@ -9,28 +10,46 @@ interface Props {
   tracks: Track[]
   total: number
   currentId: string | null
+  selectedIds: Set<string>
   sort: TrackSort
   order: 'asc' | 'desc'
   onSortChange: (sort: TrackSort) => void
+  onRowClick: (index: number, event: React.MouseEvent) => void
+  onRowDoubleClick: (index: number) => void
+  onRowContextMenu: (index: number, event: React.MouseEvent) => void
+  onKeyDown: (event: React.KeyboardEvent) => void
   onPlay: (index: number) => void
   onLoadMore: () => void
-  onRemove: (track: Track) => void
 }
 
 const COLUMNS: { key: TrackSort; label: string; className: string }[] = [
   { key: 'title', label: '标题', className: 'flex-1 min-w-0' },
-  { key: 'album', label: '专辑', className: 'w-[220px] shrink-0' },
+  { key: 'album', label: '专辑', className: 'w-[200px] shrink-0' },
   { key: 'duration', label: '时长', className: 'w-[70px] shrink-0 text-right' },
-  { key: 'addedAt', label: '加入时间', className: 'w-[110px] shrink-0 text-right' }
+  { key: 'addedAt', label: '加入时间', className: 'w-[100px] shrink-0 text-right' }
 ]
 
 export function TrackTable(props: Props): JSX.Element {
-  const { tracks, total, currentId, sort, order, onSortChange, onPlay, onLoadMore, onRemove } = props
+  const {
+    tracks,
+    total,
+    currentId,
+    selectedIds,
+    sort,
+    order,
+    onSortChange,
+    onRowClick,
+    onRowDoubleClick,
+    onRowContextMenu,
+    onKeyDown,
+    onPlay,
+    onLoadMore
+  } = props
+
   const virtual = useVirtualRows({ rowHeight: ROW_HEIGHT, total: tracks.length })
 
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col outline-none" tabIndex={0} onKeyDown={onKeyDown}>
       <div className="flex items-center gap-3 border-b border-white/5 bg-ink-900/60 px-4 py-2 text-[11px] text-ink-400">
         <span className="w-8 shrink-0 text-center">#</span>
         {COLUMNS.map((column) => (
@@ -58,25 +77,53 @@ export function TrackTable(props: Props): JSX.Element {
           const element = event.currentTarget
           if (element.scrollTop + element.clientHeight > element.scrollHeight - 480) onLoadMore()
         }}
+        // 空白处右键不弹菜单，但清除选择
+        onContextMenu={(event) => event.preventDefault()}
       >
         <div style={{ height: virtual.totalHeight, position: "relative" }}>
           <div style={{ paddingTop: virtual.paddingTop }}>
             {tracks.slice(virtual.startIndex, virtual.endIndex).map((track, offset) => {
               const index = virtual.startIndex + offset
               const isCurrent = track.id === currentId
+              const isSelected = selectedIds.has(track.id)
               return (
                 <div
                   key={track.id}
-                  onDoubleClick={() => onPlay(index)}
+                  data-track-row={track.id}
+                  onClick={(event) => onRowClick(index, event)}
+                  onDoubleClick={() => onRowDoubleClick(index)}
+                  onContextMenu={(event) => onRowContextMenu(index, event)}
                   className={[
-                    "group flex items-center gap-3 px-4 text-[12px] transition-colors",
-                    isCurrent ? 'bg-brand-500/10' : 'hover:bg-white/4'
+                    "group relative flex cursor-default items-center gap-3 px-4 text-[12px] transition-colors",
+                    isSelected
+                      ? 'bg-white/[0.07] ring-1 ring-inset ring-brand-500/30'
+                      : isCurrent
+                        ? 'bg-brand-500/10'
+                        : 'hover:bg-white/4'
                   ].join(' ')}
                   style={{ height: ROW_HEIGHT }}
                 >
-                  <span className={["w-8 shrink-0 text-center", isCurrent ? "text-brand-400" : "text-ink-400"].join(" ")}>
-                    {isCurrent ? '♪' : index + 1}
-                  </span>
+
+                  {/* 序号 / 播放按钮 / 正在播放指示 */}
+                  <div className="flex w-8 shrink-0 items-center justify-center">
+                    {isCurrent ? (
+                      <span className="text-brand-400">♪</span>
+                    ) : (
+                      <>
+                        <span className="text-ink-400 group-hover:hidden">{index + 1}</span>
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onPlay(index)
+                          }}
+                          className="hidden text-ink-100 group-hover:block"
+                          title="播放"
+                        >
+                          <Play size={13} fill="currentColor" />
+                        </button>
+                      </>
+                    )}
+                  </div>
 
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="h-8 w-8 shrink-0 overflow-hidden rounded bg-ink-700">
@@ -90,28 +137,23 @@ export function TrackTable(props: Props): JSX.Element {
                       ) : null}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-ink-100">{track.title}</p>
+                      <p className={["truncate", isCurrent ? "text-brand-300" : "text-ink-100"].join(" ")}>
+                        {track.title}
+                      </p>
                       <p className="truncate text-[11px] text-ink-400">{track.artist ?? "未知艺术家"}</p>
                     </div>
                   </div>
 
-                  <span className="w-[220px] shrink-0 truncate text-ink-300">{track.album ?? "—"}</span>
+                  <span className="w-[200px] shrink-0 truncate text-ink-300">{track.album ?? "—"}</span>
                   <span className="w-[70px] shrink-0 text-right tabular-nums text-ink-400">
                     {formatDuration(track.durationMs)}
                   </span>
-                  <span className="w-[110px] shrink-0 text-right text-[11px] text-ink-400">
+                  <span className="w-[100px] shrink-0 text-right text-[11px] text-ink-400">
                     {new Date(track.createdAt).toLocaleDateString('zh-CN')}
                   </span>
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onRemove(track)
-                    }}
-                    className="w-8 shrink-0 text-ink-400 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
-                    title="从曲库移除"
-                  >
-                    ×
-                  </button>
+                  <span className="flex w-8 shrink-0 items-center justify-center">
+                    {track.favorite ? <Heart size={12} className="fill-brand-400 text-brand-400" /> : null}
+                  </span>
                 </div>
               )
             })}
@@ -119,8 +161,11 @@ export function TrackTable(props: Props): JSX.Element {
         </div>
       </div>
 
-      <div className="border-t border-white/5 px-4 py-1.5 text-[11px] text-ink-400">
-        已加载 {tracks.length} / {total} 首
+      <div className="flex items-center justify-between border-t border-white/5 px-4 py-1.5 text-[11px] text-ink-400">
+        <span>
+          已加载 {tracks.length} / {total} 首
+        </span>
+        {selectedIds.size > 0 ? <span>已选中 {selectedIds.size} 首</span> : null}
       </div>
     </div>
   )

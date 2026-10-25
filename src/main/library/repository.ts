@@ -189,8 +189,21 @@ export function getTrackById(id: string): { id: string; path: string; coverPath:
   return { id: row.id, path: row.path, coverPath: row.cover_path }
 }
 
-export function deleteTrack(id: string): void {
-  getDb().prepare('DELETE FROM tracks WHERE id = ?').run(id)
+export function deleteTracks(ids: string[]): void {
+  if (ids.length === 0) return
+  const db = getDb()
+  const statement = db.prepare('DELETE FROM tracks WHERE id = ?')
+  db.transaction((batch: string[]) => batch.forEach((id) => statement.run(id)))(ids)
+}
+
+export function setFavorite(ids: string[], favorite: boolean): void {
+  if (ids.length === 0) return
+  const db = getDb()
+  const statement = db.prepare('UPDATE tracks SET favorite = ?, updated_at = ? WHERE id = ?')
+  const now = Date.now()
+  db.transaction((batch: string[]) =>
+    batch.forEach((id) => statement.run(favorite ? 1 : 0, now, id))
+  )(ids)
 }
 
 export function pruneMissingTracks(existingPaths: Set<string>): number {

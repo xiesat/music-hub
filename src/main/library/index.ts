@@ -1,6 +1,6 @@
 import type { ScanProgress } from '@shared/types'
 import { getLibraryRoots, setLibraryRoots } from '../settings'
-import { deleteTrack, getLibraryStats, listTracks } from './repository'
+import { deleteTracks, getLibraryStats, getTrackById, listTracks, setFavorite } from './repository'
 import { scanDirectories } from './scanner'
 
 type ProgressSink = (progress: ScanProgress) => void
@@ -69,4 +69,4 @@ export async function scanLibrary(): Promise<ScanProgress> {
   }
 }
 
-export { deleteTrack, getLibraryRoots, getLibraryStats, listTracks }
+export { deleteTracks, getLibraryRoots, getLibraryStats, getTrackById, listTracks, setFavorite }

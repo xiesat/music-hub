@@ -1,14 +1,17 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
-import type { AppInfo } from '@shared/types'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import type { AppInfo, TrackMenuPayload } from '@shared/types'
 import { getDbStats } from './db'
 import {
   addRoots,
-  deleteTrack,
+  deleteTracks,
   getLibraryRoots,
   getLibraryStats,
+  getTrackById,
   listTracks,
-  scanLibrary
+  scanLibrary,
+  setFavorite
 } from './library'
+import { popupTrackMenu } from './track-menu'
 
 export function registerIpc(): void {
   ipcMain.handle('app:info', (): AppInfo => {
@@ -40,7 +43,27 @@ export function registerIpc(): void {
   ipcMain.handle('library:scan', () => scanLibrary())
   ipcMain.handle('library:list', (_event, query) => listTracks(query))
   ipcMain.handle('library:stats', () => getLibraryStats(getLibraryRoots()))
+
   ipcMain.handle('library:remove', (_event, id: string) => {
-    deleteTrack(id)
+    deleteTracks([id])
+  })
+
+  ipcMain.handle('library:remove-many', (_event, ids: string[]) => {
+    deleteTracks(ids)
+  })
+
+  ipcMain.handle('library:set-favorite', (_event, ids: string[], favorite: boolean) => {
+    setFavorite(ids, favorite)
+  })
+
+  ipcMain.handle('ui:reveal', (_event, path: string) => {
+    shell.showItemInFolder(path)
+  })
+
+  ipcMain.handle('ui:track-menu', async (event, payload: TrackMenuPayload) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return null
+    const first = payload.ids.length === 1 ? getTrackById(payload.ids[0]) : null
+    return popupTrackMenu(win, payload, first?.path ?? null)
   })
 }

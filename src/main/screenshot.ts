@@ -17,7 +17,16 @@ export async function captureWindow(win: BrowserWindow): Promise<void> {
     })
 
     win.showInactive()
-    await new Promise((done) => setTimeout(done, 1500))
+    await new Promise((done) => setTimeout(done, 1200))
+
+    // 可选：截图前执行一段脚本（模拟点击、滚动等），便于做 UI 自检
+    const inject = process.env.MUSIC_HUB_SHOT_JS
+    if (inject) {
+      await win.webContents.executeJavaScript(inject)
+      await new Promise((done) => setTimeout(done, 600))
+    }
+
+    await new Promise((done) => setTimeout(done, 300))
 
     const image = await win.webContents.capturePage()
     writeFileSync(out, image.toPNG())

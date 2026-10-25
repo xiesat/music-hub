@@ -24,6 +24,12 @@ interface PlayerState {
   toggleMute: () => void
   cycleMode: () => void
   clearQueue: () => void
+  /** 插入到当前曲目之后（下一首播放） */
+  enqueueNext: (tracks: Track[]) => void
+  /** 追加到队列末尾 */
+  appendQueue: (tracks: Track[]) => void
+  /** 从队列中移除，自动修正当前索引 */
+  removeFromQueue: (ids: string[]) => void
 }
 
 const MODE_ORDER: PlayMode[] = ['sequence', 'loop', 'single', 'shuffle']
@@ -172,6 +178,46 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   clearQueue: () => {
     loadAndPlay(null)
     set({ queue: [], index: -1, playing: false, positionMs: 0, durationMs: 0 })
+  },
+
+  enqueueNext: (tracks) => {
+    if (tracks.length === 0) return
+    const { queue, index } = get()
+    if (queue.length === 0) {
+      get().playQueue(tracks, 0)
+      return
+    }
+    const next = queue.slice()
+    next.splice(index + 1, 0, ...tracks)
+    set({ queue: next })
+  },
+
+  appendQueue: (tracks) => {
+    if (tracks.length === 0) return
+    const { queue } = get()
+    if (queue.length === 0) {
+      get().playQueue(tracks, 0)
+      return
+    }
+    set({ queue: [...queue, ...tracks] })
+  },
+
+  removeFromQueue: (ids) => {
+    if (ids.length === 0) return
+    const drop = new Set(ids)
+    const { queue, index } = get()
+    const currentId = queue[index]?.id
+    const next = queue.filter((track) => !drop.has(track.id))
+    if (next.length === queue.length) return
+
+    if (currentId && drop.has(currentId)) {
+      loadAndPlay(null)
+      set({ queue: next, index: -1, playing: false, positionMs: 0, durationMs: 0 })
+      return
+    }
+
+    const nextIndex = currentId ? next.findIndex((track) => track.id === currentId) : -1
+    set({ queue: next, index: nextIndex })
   }
 }))
 
