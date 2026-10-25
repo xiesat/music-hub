@@ -46,7 +46,12 @@ export function PlayerBar(): JSX.Element {
     )
 
   const modeLabel = mode === 'shuffle' ? '随机' : mode === 'single' ? '单曲循环' : mode === 'loop' ? '列表循环' : '顺序播放'
-  const subtitle = isPreview ? '预览中 · 点击播放开始' : (current?.artist ?? '从曲库中选择一首歌开始')
+  const error = usePlayer((state) => state.error)
+  const subtitle = error
+    ? error
+    : isPreview
+      ? '预览中 · 点击播放开始'
+      : (current?.artist ?? '从曲库中选择一首歌开始')
 
   return (
     <footer className="flex h-[76px] shrink-0 items-center gap-4 border-t border-white/5 bg-ink-850/90 px-4 backdrop-blur">

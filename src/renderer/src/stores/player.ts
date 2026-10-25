@@ -97,6 +97,27 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   playSelected: (startAt = 0) => {
     const { selectedTrack, queue } = get()
     if (!selectedTrack) return
+
+    // 在线曲目的预览态：真正播放前才去音源取流地址
+    if (!selectedTrack.streamUrl && selectedTrack.id.startsWith('remote:')) {
+      const providerId = selectedTrack.providerId
+      const providerKey = selectedTrack.providerKey
+      if (!providerId || !providerKey) return
+      set({ selectedTrack: null })
+      void window.api.providers
+        .stream(providerId, providerKey)
+        .then((source) => {
+          if (!source) {
+            set({ error: '这首拿不到播放地址（可能需要会员或已下架）' })
+            return
+          }
+          const resolved = { ...selectedTrack, streamUrl: source.url }
+          get().playQueue([resolved], 0)
+          if (startAt > 0) get().seek(startAt)
+        })
+        .catch((error: Error) => set({ error: error.message }))
+      return
+    }
     const existing = queue.findIndex((item) => item.id === selectedTrack.id)
     set({ selectedTrack: null })
     if (existing >= 0) get().playIndex(existing, startAt)
