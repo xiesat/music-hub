@@ -86,7 +86,7 @@ export function TrackTable(props: Props): JSX.Element {
             {sort === column.key ? <span>{order === 'asc' ? '↑' : '↓'}</span> : null}
           </button>
         ))}
-        <span className="flex w-8 shrink-0 justify-center">★</span>
+        <span className="flex w-8 shrink-0 justify-center" title="喜欢">♥</span>
       </div>
 
       <div
@@ -197,7 +197,7 @@ export function TrackTable(props: Props): JSX.Element {
                         "rounded p-1 transition-colors hover:bg-white/10",
                         track.favorite
                           ? 'text-brand-400'
-                          : 'text-ink-600 opacity-0 group-hover:opacity-100 hover:text-brand-300'
+                          : 'text-ink-600 hover:text-brand-300'
                       ].join(' ')}
                       title={track.favorite ? '取消喜欢' : '加入我喜欢的音乐'}
                     >

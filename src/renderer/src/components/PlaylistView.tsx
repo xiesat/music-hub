@@ -151,12 +151,14 @@ export function PlaylistView({ playlistId }: Props): JSX.Element {
         case 'favorite': {
           await window.api.library.setFavorite(ids, true)
           setItems((previous) => previous.map((t) => (idSet.has(t.id) ? { ...t, favorite: true } : t)))
+          await refreshPlaylists()
           break
         }
         case 'unfavorite': {
           await window.api.library.setFavorite(ids, false)
           if (isSystem) await reload()
           else setItems((previous) => previous.map((t) => (idSet.has(t.id) ? { ...t, favorite: false } : t)))
+          await refreshPlaylists()
           break
         }
         case 'add-to-playlist': {
