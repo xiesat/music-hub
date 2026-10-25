@@ -1,4 +1,5 @@
 import type { JSX } from 'react'
+import { useRef } from 'react'
 import { Heart, Play } from 'lucide-react'
 import type { Track, TrackSort } from '@shared/types'
 import { useVirtualRows } from '../hooks/useVirtualRows'
@@ -20,6 +21,10 @@ interface Props {
   onKeyDown: (event: React.KeyboardEvent) => void
   onPlay: (index: number) => void
   onLoadMore: () => void
+  /** 允许拖拽：可拖到侧边栏歌单，同列表内可排序 */
+  draggable?: boolean
+  onReorder?: (fromIndex: number, toIndex: number) => void
+  emptyHint?: string
 }
 
 const COLUMNS: { key: TrackSort; label: string; className: string }[] = [
@@ -43,10 +48,23 @@ export function TrackTable(props: Props): JSX.Element {
     onRowContextMenu,
     onKeyDown,
     onPlay,
-    onLoadMore
+    onLoadMore,
+    draggable = false,
+    onReorder
   } = props
 
   const virtual = useVirtualRows({ rowHeight: ROW_HEIGHT, total: tracks.length })
+  const dragFrom = useRef<number>(-1)
+
+  const handleDragStart = (event: React.DragEvent, index: number): void => {
+    const track = tracks[index]
+    if (!track) return
+    dragFrom.current = index
+    const ids = selectedIds.has(track.id) && selectedIds.size > 0 ? Array.from(selectedIds) : [track.id]
+    event.dataTransfer.setData('application/x-musichub-tracks', JSON.stringify(ids))
+    event.dataTransfer.setData('text/plain', ids.join(','))
+    event.dataTransfer.effectAllowed = 'copyMove'
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col outline-none" tabIndex={0} onKeyDown={onKeyDown}>
@@ -66,7 +84,7 @@ export function TrackTable(props: Props): JSX.Element {
             {sort === column.key ? <span>{order === 'asc' ? '↑' : '↓'}</span> : null}
           </button>
         ))}
-        <span className="w-8 shrink-0" />
+        <span className="flex w-8 shrink-0 justify-center">★</span>
       </div>
 
       <div
@@ -77,7 +95,6 @@ export function TrackTable(props: Props): JSX.Element {
           const element = event.currentTarget
           if (element.scrollTop + element.clientHeight > element.scrollHeight - 480) onLoadMore()
         }}
-        // 空白处右键不弹菜单，但清除选择
         onContextMenu={(event) => event.preventDefault()}
       >
         <div style={{ height: virtual.totalHeight, position: "relative" }}>
@@ -90,6 +107,18 @@ export function TrackTable(props: Props): JSX.Element {
                 <div
                   key={track.id}
                   data-track-row={track.id}
+                  draggable={draggable}
+                  onDragStart={(event) => handleDragStart(event, index)}
+                  onDragOver={(event) => {
+                    if (onReorder) event.preventDefault()
+                  }}
+                  onDrop={(event) => {
+                    if (!onReorder) return
+                    event.preventDefault()
+                    const from = dragFrom.current
+                    if (from >= 0 && from !== index) onReorder(from, index)
+                    dragFrom.current = -1
+                  }}
                   onClick={(event) => onRowClick(index, event)}
                   onDoubleClick={() => onRowDoubleClick(index)}
                   onContextMenu={(event) => onRowContextMenu(index, event)}
@@ -103,8 +132,6 @@ export function TrackTable(props: Props): JSX.Element {
                   ].join(' ')}
                   style={{ height: ROW_HEIGHT }}
                 >
-
-                  {/* 序号 / 播放按钮 / 正在播放指示 */}
                   <div className="flex w-8 shrink-0 items-center justify-center">
                     {isCurrent ? (
                       <span className="text-brand-400">♪</span>
@@ -162,9 +189,7 @@ export function TrackTable(props: Props): JSX.Element {
       </div>
 
       <div className="flex items-center justify-between border-t border-white/5 px-4 py-1.5 text-[11px] text-ink-400">
-        <span>
-          已加载 {tracks.length} / {total} 首
-        </span>
+        <span>已加载 {tracks.length} / {total} 首</span>
         {selectedIds.size > 0 ? <span>已选中 {selectedIds.size} 首</span> : null}
       </div>
     </div>

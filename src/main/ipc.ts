@@ -13,6 +13,16 @@ import {
   setFavorite
 } from './library'
 import { getSetting, setSetting } from './settings'
+import {
+  addTracksToPlaylist,
+  createPlaylist,
+  deletePlaylist,
+  listPlaylistTracks,
+  listPlaylists,
+  removeTracksFromPlaylist,
+  renamePlaylist,
+  reorderPlaylist
+} from './playlists'
 import { popupTrackMenu } from './track-menu'
 
 export function registerIpc(): void {
@@ -66,6 +76,25 @@ export function registerIpc(): void {
     setSetting(key, value)
   })
 
+  ipcMain.handle('playlists:list', () => listPlaylists())
+  ipcMain.handle('playlists:create', (_event, name: string) => createPlaylist(name))
+  ipcMain.handle('playlists:rename', (_event, id: string, name: string) => {
+    renamePlaylist(id, name)
+  })
+  ipcMain.handle('playlists:remove', (_event, id: string) => {
+    deletePlaylist(id)
+  })
+  ipcMain.handle('playlists:tracks', (_event, id: string, query) => listPlaylistTracks(id, query))
+  ipcMain.handle('playlists:add', (_event, id: string, trackIds: string[]) =>
+    addTracksToPlaylist(id, trackIds)
+  )
+  ipcMain.handle('playlists:remove-tracks', (_event, id: string, trackIds: string[]) => {
+    removeTracksFromPlaylist(id, trackIds)
+  })
+  ipcMain.handle('playlists:reorder', (_event, id: string, orderedTrackIds: string[]) => {
+    reorderPlaylist(id, orderedTrackIds)
+  })
+
   ipcMain.handle('ui:reveal', (_event, path: string) => {
     shell.showItemInFolder(path)
   })
@@ -74,6 +103,6 @@ export function registerIpc(): void {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return null
     const first = payload.ids.length === 1 ? getTrackById(payload.ids[0]) : null
-    return popupTrackMenu(win, payload, first?.path ?? null)
+    return popupTrackMenu(win, payload, first?.path ?? null, listPlaylists())
   })
 }

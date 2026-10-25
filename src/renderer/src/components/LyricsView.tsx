@@ -168,7 +168,7 @@ export function LyricsView(): JSX.Element | null {
             <div
               ref={listRef}
               onScroll={handleScroll}
-              className="h-full overflow-y-auto pr-4"
+              className="h-full overflow-y-auto px-2"
             >
               <div style={{ paddingTop: '30%', paddingBottom: '45%' }}>
                 {loading ? (
@@ -199,7 +199,7 @@ export function LyricsView(): JSX.Element | null {
                         ref={isActive ? activeRef : null}
                         onClick={() => handleLineClick(line)}
                         className={[
-                          "select-none py-2 text-[19px] leading-relaxed transition-all duration-300",
+                          "select-none py-2 text-center text-[19px] leading-relaxed transition-all duration-300",
                           clickable ? 'cursor-pointer' : '',
                           isActive
                             ? 'font-medium text-white'

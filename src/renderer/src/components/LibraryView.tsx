@@ -1,9 +1,10 @@
 import type { JSX } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FolderPlus, Play, RefreshCw, Search, Shuffle, Trash2, X } from 'lucide-react'
-import type { LibraryStats, ScanProgress, Track, TrackMenuAction, TrackSort } from '@shared/types'
+import type { LibraryStats, ScanProgress, Track, TrackMenuResult, TrackSort } from '@shared/types'
 import { formatBytes, formatDuration } from '../lib/format'
 import { usePlayer } from '../stores/player'
+import { usePlaylists } from '../stores/playlists'
 import { TrackTable } from './TrackTable'
 
 const PAGE_SIZE = 200
@@ -27,6 +28,7 @@ export function LibraryView(): JSX.Element {
 
   const currentTrack = usePlayer((state) => state.queue[state.index] ?? null)
   const playQueue = usePlayer((state) => state.playQueue)
+  const refreshPlaylists = usePlaylists((state) => state.refresh)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(keyword.trim()), 250)
@@ -143,7 +145,8 @@ export function LibraryView(): JSX.Element {
   )
 
   const applyMenuAction = useCallback(
-    async (action: TrackMenuAction, ids: string[]): Promise<void> => {
+    async (result: TrackMenuResult): Promise<void> => {
+      const { action, ids } = result
       const idSet = new Set(ids)
       const picked = items.filter((track) => idSet.has(track.id))
       if (picked.length === 0) return
@@ -171,12 +174,24 @@ export function LibraryView(): JSX.Element {
           )
           break
         }
+        case 'add-to-playlist': {
+          let targetId = result.playlistId
+          if (!targetId) break
+          if (targetId === '__new__') {
+            const created = await window.api.playlists.create('新建歌单')
+            targetId = created.id
+          }
+          const added = await window.api.playlists.addTracks(targetId, ids)
+          await refreshPlaylists()
+          setMessage('已添加 ' + added + ' 首到歌单')
+          break
+        }
         case 'remove':
           await removeTracks(ids)
           break
       }
     },
-    [items, playQueue, removeTracks]
+    [items, playQueue, removeTracks, refreshPlaylists]
   )
 
   const handleRowClick = (index: number, event: React.MouseEvent): void => {
@@ -227,8 +242,8 @@ export function LibraryView(): JSX.Element {
     }
 
     const allFavorite = ids.every((id) => items.find((item) => item.id === id)?.favorite)
-    const action = await window.api.ui.showTrackMenu({ ids, favorite: allFavorite })
-    if (action) await applyMenuAction(action, ids)
+    const result = await window.api.ui.showTrackMenu({ ids, favorite: allFavorite })
+    if (result) await applyMenuAction(result)
   }
 
   const handleKeyDown = (event: React.KeyboardEvent): void => {
@@ -418,6 +433,7 @@ export function LibraryView(): JSX.Element {
           onKeyDown={handleKeyDown}
           onPlay={(index) => playQueue(items, index)}
           onLoadMore={() => void loadMore()}
+          draggable
         />
       )}
     </div>

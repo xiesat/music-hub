@@ -5,12 +5,15 @@ import type {
   LibraryApi,
   LibraryStats,
   ScanProgress,
-  TrackMenuAction,
   TrackMenuPayload,
+  TrackMenuResult,
   TrackPage,
   SettingsApi,
   TrackQuery,
-  UiApi
+  UiApi,
+  Playlist,
+  PlaylistApi,
+  PlaylistQuery
 } from '@shared/types'
 
 const library: LibraryApi = {
@@ -34,9 +37,24 @@ const library: LibraryApi = {
 }
 
 const ui: UiApi = {
-  showTrackMenu: (payload: TrackMenuPayload): Promise<TrackMenuAction | null> =>
+  showTrackMenu: (payload: TrackMenuPayload): Promise<TrackMenuResult | null> =>
     ipcRenderer.invoke('ui:track-menu', payload),
   revealInFolder: (path: string): Promise<void> => ipcRenderer.invoke('ui:reveal', path)
+}
+
+const playlists: PlaylistApi = {
+  list: (): Promise<Playlist[]> => ipcRenderer.invoke('playlists:list'),
+  create: (name: string): Promise<Playlist> => ipcRenderer.invoke('playlists:create', name),
+  rename: (id: string, name: string): Promise<void> => ipcRenderer.invoke('playlists:rename', id, name),
+  remove: (id: string): Promise<void> => ipcRenderer.invoke('playlists:remove', id),
+  tracks: (id: string, query: PlaylistQuery): Promise<TrackPage> =>
+    ipcRenderer.invoke('playlists:tracks', id, query),
+  addTracks: (id: string, trackIds: string[]): Promise<number> =>
+    ipcRenderer.invoke('playlists:add', id, trackIds),
+  removeTracks: (id: string, trackIds: string[]): Promise<void> =>
+    ipcRenderer.invoke('playlists:remove-tracks', id, trackIds),
+  reorder: (id: string, orderedTrackIds: string[]): Promise<void> =>
+    ipcRenderer.invoke('playlists:reorder', id, orderedTrackIds)
 }
 
 const settings: SettingsApi = {
@@ -49,7 +67,8 @@ const api = {
   getDbStats: (): Promise<DbStats> => ipcRenderer.invoke('db:stats'),
   library,
   ui,
-  settings
+  settings,
+  playlists
 }
 
 if (process.contextIsolated) {

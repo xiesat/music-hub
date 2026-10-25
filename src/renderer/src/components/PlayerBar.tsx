@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { useState } from 'react'
-import { MicVocal, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
+import { ListMusic, MicVocal, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
 import { formatDuration } from '../lib/format'
 import { usePlayer } from '../stores/player'
 import { useUi } from '../stores/ui'
@@ -14,6 +14,7 @@ export function PlayerBar(): JSX.Element {
   const volume = usePlayer((state) => state.volume)
   const muted = usePlayer((state) => state.muted)
   const mode = usePlayer((state) => state.mode)
+  const queueLength = usePlayer((state) => state.queue.length)
   const toggle = usePlayer((state) => state.toggle)
   const playSelected = usePlayer((state) => state.playSelected)
   const next = usePlayer((state) => state.next)
@@ -26,6 +27,8 @@ export function PlayerBar(): JSX.Element {
   const [coverFailed, setCoverFailed] = useState(false)
   const openLyrics = useUi((state) => state.openLyrics)
   const lyricsOpen = useUi((state) => state.lyricsOpen)
+  const toggleQueue = useUi((state) => state.toggleQueue)
+  const queueOpen = useUi((state) => state.queueOpen)
 
   const isPreview = Boolean(selectedTrack && selectedTrack.id !== current?.id)
   const display = isPreview ? selectedTrack : current
@@ -100,6 +103,17 @@ export function PlayerBar(): JSX.Element {
           </button>
           <button onClick={() => next()} className="text-ink-300 transition-colors hover:text-white" title="下一首">
             <SkipForward size={17} />
+          </button>
+          <button
+            onClick={toggleQueue}
+            className={[
+              "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors hover:bg-white/10",
+              queueOpen ? 'text-brand-400' : 'text-ink-400'
+            ].join(' ')}
+            title="播放队列"
+          >
+            <ListMusic size={13} />
+            {queueLength > 0 ? queueLength : ''}
           </button>
         </div>
 

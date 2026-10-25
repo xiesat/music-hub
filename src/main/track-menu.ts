@@ -1,5 +1,5 @@
 import { BrowserWindow, Menu, clipboard, shell, type MenuItemConstructorOptions } from 'electron'
-import type { TrackMenuAction, TrackMenuPayload } from '@shared/types'
+import type { Playlist, TrackMenuAction, TrackMenuPayload, TrackMenuResult } from '@shared/types'
 
 function label(count: number, single: string, multiple: string): string {
   return count > 1 ? multiple.replace('{n}', String(count)) : single
@@ -12,18 +12,19 @@ function label(count: number, single: string, multiple: string): string {
 export function popupTrackMenu(
   win: BrowserWindow,
   payload: TrackMenuPayload,
-  filePath: string | null
-): Promise<TrackMenuAction | null> {
+  filePath: string | null,
+  playlists: Playlist[]
+): Promise<TrackMenuResult | null> {
   const { ids, favorite } = payload
   const count = ids.length
   if (count === 0) return Promise.resolve(null)
 
   return new Promise((resolve) => {
     let settled = false
-    const finish = (action: TrackMenuAction | null): void => {
+    const finish = (action: TrackMenuAction | null, playlistId?: string): void => {
       if (settled) return
       settled = true
-      resolve(action)
+      resolve(action ? { action, ids, playlistId } : null)
     }
 
     const template: MenuItemConstructorOptions[] = [
@@ -43,6 +44,23 @@ export function popupTrackMenu(
       {
         label: favorite ? (count > 1 ? '取消收藏' : '取消收藏') : count > 1 ? '收藏选中的 {n} 首'.replace('{n}', String(count)) : '收藏',
         click: () => finish(favorite ? 'unfavorite' : 'favorite')
+      },
+      { type: 'separator' },
+      {
+        label: '添加到歌单',
+        submenu: [
+          ...playlists
+            .filter((playlist) => !playlist.isSystem)
+            .map((playlist) => ({
+              label: playlist.name + '（' + playlist.trackCount + '）',
+              click: () => finish('add-to-playlist', playlist.id)
+            })),
+          ...(playlists.length > 1 ? [{ type: 'separator' as const }] : []),
+          {
+            label: '新建歌单并添加…',
+            click: () => finish('add-to-playlist', '__new__')
+          }
+        ]
       },
       { type: 'separator' },
       {

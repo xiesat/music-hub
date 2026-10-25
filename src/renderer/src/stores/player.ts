@@ -31,6 +31,7 @@ interface PlayerState {
   enqueueNext: (tracks: Track[]) => void
   appendQueue: (tracks: Track[]) => void
   removeFromQueue: (ids: string[]) => void
+  moveInQueue: (fromIndex: number, toIndex: number) => void
 }
 
 const MODE_ORDER: PlayMode[] = ['sequence', 'loop', 'single', 'shuffle']
@@ -260,6 +261,20 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       return
     }
 
+    const nextIndex = currentId ? next.findIndex((track) => track.id === currentId) : -1
+    set({ queue: next, index: nextIndex })
+  },
+
+  moveInQueue: (fromIndex, toIndex) => {
+    const { queue, index } = get()
+    if (fromIndex === toIndex) return
+    if (fromIndex < 0 || fromIndex >= queue.length) return
+    if (toIndex < 0 || toIndex >= queue.length) return
+
+    const currentId = queue[index]?.id
+    const next = queue.slice()
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
     const nextIndex = currentId ? next.findIndex((track) => track.id === currentId) : -1
     set({ queue: next, index: nextIndex })
   }

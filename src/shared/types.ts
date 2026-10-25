@@ -44,6 +44,7 @@ export type TrackSort = 'title' | 'artist' | 'album' | 'addedAt' | 'duration'
 
 export interface TrackQuery {
   keyword?: string
+  favoriteOnly?: boolean
   sort?: TrackSort
   order?: 'asc' | 'desc'
   offset?: number
@@ -81,6 +82,7 @@ export interface LibraryStats {
 /** 右键菜单点击后回传给渲染进程的动作 */
 export type TrackMenuAction =
   | 'play'
+  | 'add-to-playlist'
   | 'play-next'
   | 'append-queue'
   | 'favorite'
@@ -95,6 +97,7 @@ export interface TrackMenuPayload {
 export interface TrackMenuResult {
   action: TrackMenuAction
   ids: string[]
+  playlistId?: string
 }
 
 export interface LibraryApi {
@@ -111,7 +114,7 @@ export interface LibraryApi {
 
 export interface UiApi {
   /** 弹出原生右键菜单；返回 null 表示用户取消 */
-  showTrackMenu(payload: TrackMenuPayload): Promise<TrackMenuAction | null>
+  showTrackMenu(payload: TrackMenuPayload): Promise<TrackMenuResult | null>
   /** 在资源管理器中定位文件 */
   revealInFolder(path: string): Promise<void>
 }
@@ -131,10 +134,38 @@ export interface PlayerSnapshot {
   positionMs: number
 }
 
+export interface Playlist {
+  id: string
+  name: string
+  description: string | null
+  trackCount: number
+  isSystem: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface PlaylistQuery {
+  offset?: number
+  limit?: number
+  keyword?: string
+}
+
+export interface PlaylistApi {
+  list(): Promise<Playlist[]>
+  create(name: string): Promise<Playlist>
+  rename(id: string, name: string): Promise<void>
+  remove(id: string): Promise<void>
+  tracks(id: string, query: PlaylistQuery): Promise<TrackPage>
+  addTracks(id: string, trackIds: string[]): Promise<number>
+  removeTracks(id: string, trackIds: string[]): Promise<void>
+  reorder(id: string, orderedTrackIds: string[]): Promise<void>
+}
+
 export interface IpcApi {
   getAppInfo(): Promise<AppInfo>
   getDbStats(): Promise<DbStats>
   library: LibraryApi
   ui: UiApi
   settings: SettingsApi
+  playlists: PlaylistApi
 }

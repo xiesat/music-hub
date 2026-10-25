@@ -5,10 +5,13 @@ import type { AppInfo, DbStats } from '@shared/types'
 import { InfoPanel } from './components/InfoPanel'
 import { LibraryView } from './components/LibraryView'
 import { LyricsView } from './components/LyricsView'
+import { PlaylistView } from './components/PlaylistView'
+import { QueuePanel } from './components/QueuePanel'
 import { PlayerBar } from './components/PlayerBar'
 import { Sidebar, type ViewId } from './components/Sidebar'
 import { TitleBar } from './components/TitleBar'
 import { hydratePlayer, savePlayerState } from './stores/player'
+import { useUi } from './stores/ui'
 
 const VIEW_META: Record<ViewId, { title: string; desc: string }> = {
   discover: { title: '发现音乐', desc: '接入音源后，这里会展示多平台搜索结果' },
@@ -21,6 +24,8 @@ const VIEW_META: Record<ViewId, { title: string; desc: string }> = {
 
 export default function App(): JSX.Element {
   const [view, setView] = useState<ViewId>('library')
+  const [playlistId, setPlaylistId] = useState<string | null>(null)
+  const queueOpen = useUi((state) => state.queueOpen)
   const [app, setApp] = useState<AppInfo | null>(null)
   const [db, setDb] = useState<DbStats | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -61,9 +66,21 @@ export default function App(): JSX.Element {
       <TitleBar />
 
       <div className="flex min-h-0 flex-1">
-        <Sidebar active={view} onChange={setView} version={app?.version ?? '0.1.0'} />
+        <Sidebar
+          active={view}
+          activePlaylistId={playlistId}
+          onChange={setView}
+          onSelectPlaylist={(id) => {
+            setPlaylistId(id)
+            setView('playlists')
+          }}
+          version={app?.version ?? '0.1.0'}
+        />
 
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <main
+          className="flex min-w-0 flex-1 flex-col overflow-hidden transition-[margin] duration-200"
+          style={{ marginRight: queueOpen ? 360 : 0 }}
+        >
           <div className="flex items-center gap-3 border-b border-white/5 px-6 py-4">
             <div className="min-w-0">
               <h1 className="text-[15px] font-medium text-white">{meta.title}</h1>
@@ -71,7 +88,9 @@ export default function App(): JSX.Element {
             </div>
           </div>
 
-          {view === 'library' ? (
+          {view === 'playlists' && playlistId ? (
+            <PlaylistView key={playlistId} playlistId={playlistId} />
+          ) : view === 'library' ? (
             <LibraryView />
           ) : view === 'discover' ? (
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
@@ -104,6 +123,7 @@ export default function App(): JSX.Element {
 
       <PlayerBar />
       <LyricsView />
+      <QueuePanel />
     </div>
   )
 }

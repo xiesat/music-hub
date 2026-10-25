@@ -49,9 +49,10 @@ const SELECT_FIELDS =
 export function listTracks(query: TrackQuery): TrackPage {
   const db = getDb()
   const keyword = (query.keyword ?? '').trim()
-  const where = keyword
-    ? "WHERE kind = 'local' AND (title LIKE @kw OR artist LIKE @kw OR album LIKE @kw)"
-    : "WHERE kind = 'local'"
+  const conditions = ["kind = 'local'"]
+  if (query.favoriteOnly) conditions.push('favorite = 1')
+  if (keyword) conditions.push('(title LIKE @kw OR artist LIKE @kw OR album LIKE @kw)')
+  const where = 'WHERE ' + conditions.join(' AND ')
 
   const params = {
     kw: '%' + keyword + '%',

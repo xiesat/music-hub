@@ -1,19 +1,13 @@
 import type { JSX } from 'react'
-import {
-  Compass,
-  Library,
-  ListMusic,
-  Download,
-  Settings,
-  Plug
-} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Compass, Download, Heart, Library, ListMusic, Plus, Plug, Settings } from 'lucide-react'
+import { usePlaylists } from '../stores/playlists'
 
 export type ViewId = 'discover' | 'library' | 'playlists' | 'downloads' | 'providers' | 'settings'
 
 const NAV: { id: ViewId; label: string; icon: typeof Compass }[] = [
   { id: 'discover', label: '发现音乐', icon: Compass },
   { id: 'library', label: '本地曲库', icon: Library },
-  { id: 'playlists', label: '歌单', icon: ListMusic },
   { id: 'downloads', label: '下载管理', icon: Download },
   { id: 'providers', label: '音源插件', icon: Plug },
   { id: 'settings', label: '设置', icon: Settings }
@@ -21,11 +15,47 @@ const NAV: { id: ViewId; label: string; icon: typeof Compass }[] = [
 
 interface Props {
   active: ViewId
+  activePlaylistId: string | null
   onChange: (id: ViewId) => void
+  onSelectPlaylist: (id: string) => void
   version: string
 }
 
-export function Sidebar({ active, onChange, version }: Props): JSX.Element {
+export function Sidebar({
+  active,
+  activePlaylistId,
+  onChange,
+  onSelectPlaylist,
+  version
+}: Props): JSX.Element {
+  const playlists = usePlaylists((state) => state.items)
+  const refresh = usePlaylists((state) => state.refresh)
+  const createPlaylist = usePlaylists((state) => state.create)
+  const addTracks = usePlaylists((state) => state.addTracks)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  const handleCreate = async (): Promise<void> => {
+    const playlist = await createPlaylist('新建歌单')
+    onSelectPlaylist(playlist.id)
+  }
+
+  const handleDrop = async (event: React.DragEvent, playlistId: string): Promise<void> => {
+    event.preventDefault()
+    setDropTarget(null)
+    const raw = event.dataTransfer.getData('application/x-musichub-tracks')
+    if (!raw) return
+    try {
+      const ids = JSON.parse(raw) as string[]
+      if (ids.length > 0) await addTracks(playlistId, ids)
+    } catch {
+      /* 忽略非法拖拽数据 */
+    }
+  }
+
   return (
     <aside className="flex w-[232px] shrink-0 flex-col border-r border-white/5 bg-ink-950/60">
       <nav className="flex flex-col gap-1 p-3">
@@ -37,9 +67,7 @@ export function Sidebar({ active, onChange, version }: Props): JSX.Element {
               onClick={() => onChange(id)}
               className={[
                 "no-drag flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors",
-                isActive
-                  ? 'bg-white/8 text-white'
-                  : 'text-ink-300 hover:bg-white/5 hover:text-ink-50'
+                isActive ? 'bg-white/8 text-white' : 'text-ink-300 hover:bg-white/5 hover:text-ink-50'
               ].join(' ')}
             >
               <Icon size={16} strokeWidth={1.8} className={isActive ? "text-brand-400" : ""} />
@@ -49,7 +77,55 @@ export function Sidebar({ active, onChange, version }: Props): JSX.Element {
         })}
       </nav>
 
-      <div className="mt-auto border-t border-white/5 p-4">
+      <div className="flex items-center justify-between px-4 pb-1 pt-2 text-[11px] text-ink-500">
+        <span>歌单</span>
+        <button
+          onClick={() => void handleCreate()}
+          className="text-ink-400 transition-colors hover:text-brand-400"
+          title="新建歌单"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {playlists.map((playlist) => {
+          const isActive = active === 'playlists' && activePlaylistId === playlist.id
+          const isDropTarget = dropTarget === playlist.id
+          return (
+            <button
+              key={playlist.id}
+              onClick={() => onSelectPlaylist(playlist.id)}
+              onDragOver={(event) => {
+                if (!playlist.isSystem) {
+                  event.preventDefault()
+                  setDropTarget(playlist.id)
+                }
+              }}
+              onDragLeave={() => setDropTarget(null)}
+              onDrop={(event) => void handleDrop(event, playlist.id)}
+              className={[
+                "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-[12px] transition-colors",
+                isActive ? 'bg-white/8 text-white' : 'text-ink-300 hover:bg-white/5 hover:text-ink-50',
+                isDropTarget ? 'ring-1 ring-brand-500/60' : ''
+              ].join(' ')}
+            >
+              {playlist.isSystem ? (
+                <Heart size={13} className="shrink-0 text-brand-400" />
+              ) : (
+                <ListMusic size={13} className="shrink-0 opacity-60" />
+              )}
+              <span className="truncate">{playlist.name}</span>
+              <span className="ml-auto shrink-0 text-[10px] text-ink-500">{playlist.trackCount}</span>
+            </button>
+          )
+        })}
+        {playlists.length === 0 ? (
+          <p className="px-3 py-2 text-[11px] text-ink-500">还没有歌单，点右上角 + 新建</p>
+        ) : null}
+      </div>
+
+      <div className="border-t border-white/5 p-4">
         <p className="text-[11px] leading-relaxed text-ink-400">
           播放器 + 插件化音源
           <br />
