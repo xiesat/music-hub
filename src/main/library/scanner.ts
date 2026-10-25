@@ -289,8 +289,13 @@ export async function scanDirectories(roots: string[], options: ScanOptions): Pr
           buffer.push(parsed)
           if (buffer.length >= FLUSH_SIZE) flush()
         }
-      } catch {
+      } catch (error) {
+        // 读取失败（文件被占用/权限问题）不能当作「已删除」，否则会被 prune 清掉
         progress.failed += 1
+        if (process.env.MUSIC_HUB_DEBUG) {
+          console.error('[scan] stat failed:', file, (error as Error).message)
+        }
+        seen.add(file)
       }
 
       if (progress.scanned % 10 === 0 || progress.scanned === files.length) {

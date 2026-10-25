@@ -115,6 +115,7 @@ export interface LibraryApi {
   removeTracks(ids: string[]): Promise<void>
   setFavorite(ids: string[], favorite: boolean): Promise<void>
   lyric(id: string): Promise<{ lrc: string | null; title: string } | null>
+  enrichCovers(limit?: number): Promise<{ checked: number; filled: number }>
   onScanProgress(listener: (progress: ScanProgress) => void): () => void
 }
 

@@ -23,6 +23,7 @@ import {
   renamePlaylist,
   reorderPlaylist
 } from './playlists'
+import { enrichMissingCovers } from './providers/cover-enrich'
 import {
   downloadRemoteTrack,
   listProviders,
@@ -72,6 +73,10 @@ export function registerIpc(): void {
   ipcMain.handle('library:remove-many', (_event, ids: string[]) => {
     deleteTracks(ids)
   })
+
+  ipcMain.handle('library:enrich-covers', (_event, limit?: number) =>
+    enrichMissingCovers(limit ?? 30)
+  )
 
   ipcMain.handle('library:lyric', (_event, id: string) => getTrackLyric(id))
 

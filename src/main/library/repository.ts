@@ -46,16 +46,51 @@ const SORT_COLUMN: Record<TrackSort, string> = {
 const SELECT_FIELDS =
   'id, title, artist, album, duration_ms, format, bitrate, size, path, cover_path, favorite, play_count, created_at'
 
+/**
+ * 关键词拆成多个词元：词元之间是 AND，每个词元在 标题/艺人/专辑/歌词 之间是 OR。
+ * 这样「晴天 周杰伦」这种组合、以及只记得一句歌词的搜索都能命中。
+ */
+export function buildKeywordFilter(
+  keyword: string,
+  extraConditions: string[] = []
+): { where: string; params: Record<string, string> } {
+  const tokens = keyword
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 5)
+
+  const conditions = [...extraConditions]
+  const params: Record<string, string> = {}
+
+  tokens.forEach((token, index) => {
+    const key = 'kw' + index
+    params[key] = '%' + token + '%'
+    conditions.push(
+      '(title LIKE @' +
+        key +
+        ' OR artist LIKE @' +
+        key +
+        ' OR album LIKE @' +
+        key +
+        ' OR lyric LIKE @' +
+        key +
+        ')'
+    )
+  })
+
+  return { where: conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '', params }
+}
+
 export function listTracks(query: TrackQuery): TrackPage {
   const db = getDb()
-  const keyword = (query.keyword ?? '').trim()
-  const conditions = ["kind = 'local'"]
-  if (query.favoriteOnly) conditions.push('favorite = 1')
-  if (keyword) conditions.push('(title LIKE @kw OR artist LIKE @kw OR album LIKE @kw)')
-  const where = 'WHERE ' + conditions.join(' AND ')
+  const extra = ["kind = 'local'"]
+  if (query.favoriteOnly) extra.push('favorite = 1')
 
+  const filter = buildKeywordFilter(query.keyword ?? '', extra)
+  const where = filter.where
   const params = {
-    kw: '%' + keyword + '%',
+    ...filter.params,
     limit: Math.min(query.limit ?? 200, 1000),
     offset: Math.max(query.offset ?? 0, 0)
   }
@@ -77,9 +112,7 @@ export function listTracks(query: TrackQuery): TrackPage {
     )
     .all(params) as TrackRow[]
 
-  const total = (
-    db.prepare('SELECT COUNT(*) AS c FROM tracks ' + where).get({ kw: params.kw }) as { c: number }
-  ).c
+  const total = (db.prepare('SELECT COUNT(*) AS c FROM tracks ' + where).get(filter.params) as { c: number }).c
 
   return { items: rows.map(toTrack), total }
 }

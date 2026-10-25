@@ -71,6 +71,23 @@ export async function scanLibrary(): Promise<ScanProgress> {
       }
     })
     setSetting('scanner.parserVersion', PARSER_VERSION)
+
+    // 扫描完成后后台补一批封面（不阻塞返回，失败静默）
+    if (!result.error) {
+      setTimeout(() => {
+        void import('../providers/cover-enrich')
+          .then(async (module) => {
+            const enriched = await module.enrichMissingCovers(15)
+            if (enriched.filled > 0) {
+              sink({ ...idleProgress(), phase: 'done', added: 0, updated: enriched.filled })
+            }
+          })
+          .catch(() => {
+            /* 忽略 */
+          })
+      }, 1500)
+    }
+
     return result
   } catch (error) {
     const failed = idleProgress()

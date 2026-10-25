@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FolderPlus, Play, RefreshCw, Search, Shuffle, Trash2, X } from 'lucide-react'
+import { FolderPlus, ImageDown, Play, RefreshCw, Search, Shuffle, Trash2, X } from 'lucide-react'
 import type { LibraryStats, ScanProgress, Track, TrackMenuResult, TrackSort } from '@shared/types'
 import { formatBytes, formatDuration } from '../lib/format'
 import { usePlayer } from '../stores/player'
@@ -108,6 +108,18 @@ export function LibraryView(): JSX.Element {
     setMessage('开始扫描…')
     const result = await window.api.library.scan()
     setMessage(result.error ?? null)
+  }
+
+  const fillCovers = async (): Promise<void> => {
+    setMessage('正在在线补全封面…')
+    try {
+      const result = await window.api.library.enrichCovers(30)
+      setMessage('封面补全完成：检查 ' + result.checked + ' 首，补上 ' + result.filled + ' 首')
+      await loadFirstPage()
+      void refreshStats()
+    } catch (error) {
+      setMessage('补全封面失败：' + (error as Error).message)
+    }
   }
 
   const rescan = async (): Promise<void> => {
@@ -333,9 +345,17 @@ export function LibraryView(): JSX.Element {
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               className="h-full w-full bg-transparent text-ink-100 outline-none placeholder:text-ink-400"
-              placeholder="搜索标题、艺人、专辑"
+              placeholder="搜索 标题/艺人/专辑/歌词"
             />
           </label>
+          <button
+            onClick={() => void fillCovers()}
+            className="flex h-9 items-center gap-2 rounded-lg border border-white/8 px-3 text-[12px] text-ink-200 transition-colors hover:bg-white/5"
+            title="为没有封面的本地曲目在线补一张"
+          >
+            <ImageDown size={14} />
+            补全封面
+          </button>
           <button
             onClick={() => void rescan()}
             className="flex h-9 items-center gap-2 rounded-lg border border-white/8 px-3 text-[12px] text-ink-200 transition-colors hover:bg-white/5"

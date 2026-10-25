@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Playlist, Track, TrackPage } from '@shared/types'
 import { getDb } from './db'
-import { listTracks } from './library/repository'
+import { buildKeywordFilter, listTracks } from './library/repository'
 
 export const FAVORITES_ID = 'favorites'
 
@@ -113,7 +113,9 @@ export function listPlaylistTracks(
   const limit = Math.min(query.limit ?? 300, 1000)
   const offset = Math.max(query.offset ?? 0, 0)
   const keyword = (query.keyword ?? '').trim()
-  const where = keyword ? ' AND (t.title LIKE @kw OR t.artist LIKE @kw OR t.album LIKE @kw)' : ''
+  const tokenFilter = buildKeywordFilter(keyword)
+  const where = tokenFilter.where ? ' AND ' + tokenFilter.where.replace(/^WHERE /, '').replace(/title LIKE/g, 't.title LIKE').replace(/artist LIKE/g, 't.artist LIKE').replace(/album LIKE/g, 't.album LIKE').replace(/lyric LIKE/g, 't.lyric LIKE') : ''
+  const keywordParams = tokenFilter.params
 
   const rows = db
     .prepare(
@@ -124,7 +126,7 @@ export function listPlaylistTracks(
         where +
         ' ORDER BY pi.position ASC LIMIT @limit OFFSET @offset'
     )
-    .all({ id, kw: '%' + keyword + '%', limit, offset }) as Record<string, unknown>[]
+    .all({ id, ...keywordParams, limit, offset }) as Record<string, unknown>[]
 
   const total = (
     db
@@ -133,7 +135,7 @@ export function listPlaylistTracks(
           ' WHERE pi.playlist_id = @id' +
           where
       )
-      .get({ id, kw: '%' + keyword + '%' }) as { c: number }
+      .get({ id, ...keywordParams }) as { c: number }
   ).c
 
   const items: Track[] = rows.map((row) => ({
