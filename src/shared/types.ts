@@ -94,10 +94,13 @@ export type TrackMenuAction =
   | 'favorite'
   | 'unfavorite'
   | 'remove'
+  | 'download'
 
 export interface TrackMenuPayload {
   ids: string[]
   favorite: boolean
+  /** 选中项是否全部是在线曲目（决定「下载到本地」是否可用） */
+  canDownload?: boolean
 }
 
 export interface TrackMenuResult {

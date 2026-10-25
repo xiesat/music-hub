@@ -199,7 +199,62 @@ export async function searchProvider(id: string, keyword: string, page = 1): Pro
   }
 }
 
-export async function streamProvider(id: string, key: string): Promise<StreamSource | null> {
+export interface MultiSearchResult {
+  items: RemoteTrack[]
+  total: number
+  sources: { id: string; name: string; ok: boolean; count: number; error: string | null }[]
+}
+
+/** 并行搜索所有启用音源；单个音源失败只记录状态，不影响其它 */
+export async function searchAllProviders(keyword: string, page = 1): Promise<MultiSearchResult> {
+  const enabled = listProviders().filter((item) => item.enabled)
+  const settled = await Promise.all(
+    enabled.map(async (provider) => {
+      try {
+        const result = await searchProvider(provider.id, keyword, page)
+        return {
+          id: provider.id,
+          name: provider.name,
+          ok: true,
+          count: result.items.length,
+          error: null,
+          items: result.items
+        }
+      } catch (error) {
+        return {
+          id: provider.id,
+          name: provider.name,
+          ok: false,
+          count: 0,
+          error: (error as Error).message,
+          items: [] as RemoteTrack[]
+        }
+      }
+    })
+  )
+
+  // 交错合并，让每个音源的结果都能出现在前面
+  const merged: RemoteTrack[] = []
+  const maxLength = Math.max(0, ...settled.map((item) => item.items.length))
+  for (let i = 0; i < maxLength; i += 1) {
+    for (const source of settled) {
+      const item = source.items[i]
+      if (item) merged.push(item)
+    }
+  }
+
+  return {
+    items: merged,
+    total: settled.reduce((sum, item) => sum + item.count, 0),
+    sources: settled.map(({ id, name, ok, count, error }) => ({ id, name, ok, count, error }))
+  }
+}
+
+export async function streamProvider(
+  id: string,
+  key: string,
+  meta?: { title?: string; artist?: string | null }
+): Promise<StreamSource | null> {
   const script = scriptFor(id)
   if (script?.script_path) {
     try {
@@ -213,11 +268,29 @@ export async function streamProvider(id: string, key: string): Promise<StreamSou
 
   const provider = getProvider(id)
   try {
-    return await provider.stream(key)
+    const direct = await provider.stream(key)
+    if (direct) return direct
   } catch (error) {
     markHealth(id, false, (error as Error).message)
-    return null
   }
+
+  // 换源兜底：拿不到地址时，去其它音源按 标题+艺人 找同一首
+  if (!meta?.title) return null
+  const others = listProviders().filter((item) => item.enabled && item.id !== id)
+  const normalized = meta.title.replace(/\s+/g, '').toLowerCase()
+  for (const other of others) {
+    try {
+      const page = await searchProvider(other.id, [meta.title, meta.artist].filter(Boolean).join(' '), 1)
+      const match = page.items.find((item) => item.title.replace(/\s+/g, '').toLowerCase() === normalized)
+      if (!match) continue
+      if (match.providerId !== other.id) continue
+      const source = await streamProvider(other.id, match.key)
+      if (source) return source
+    } catch {
+      /* 换下一个音源 */
+    }
+  }
+  return null
 }
 
 export async function lyricProvider(id: string, key: string): Promise<LyricResult> {

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { RemoteTrack } from '@shared/provider'
+import type { ProviderSourceStatus, RemoteTrack } from '@shared/provider'
 
 interface DiscoverState {
   providerId: string
@@ -15,6 +15,8 @@ interface DiscoverState {
   searched: boolean
   scrollTop: number
   downloading: Record<string, number>
+  /** 「全部音源」模式下各音源的状态 */
+  sources: ProviderSourceStatus[]
 
   setProvider: (id: string) => void
   setKeyword: (value: string) => void
@@ -47,6 +49,7 @@ export const useDiscover = create<DiscoverState>((set, get) => ({
   searched: false,
   scrollTop: 0,
   downloading: {},
+  sources: [],
 
   setProvider: (id) => set({ providerId: id }),
   setKeyword: (value) => set({ keyword: value }),
@@ -59,6 +62,28 @@ export const useDiscover = create<DiscoverState>((set, get) => ({
     const nextPage = reset ? 1 : page + 1
     set({ loading: true, error: null, message: null })
     try {
+      if (providerId === 'all') {
+        const multi = await window.api.providers.searchAll(query, nextPage)
+        const failed = multi.sources.filter((source) => !source.ok)
+        set({
+          items: reset ? multi.items : [...items, ...multi.items],
+          total: multi.total,
+          hasMore: false,
+          page: nextPage,
+          sources: multi.sources,
+          searched: true,
+          message:
+            multi.items.length === 0
+              ? '所有音源都没有结果' +
+                (failed.length > 0 ? '（' + failed.map((s) => s.name + ': ' + s.error).join('；') + '）' : '')
+              : failed.length > 0
+                ? '部分音源失败：' + failed.map((s) => s.name).join('、')
+                : null,
+          scrollTop: reset ? 0 : get().scrollTop
+        })
+        return
+      }
+
       const result = await window.api.providers.search(providerId, query, nextPage)
       const merged = reset ? result.items : [...items, ...result.items]
       set({
@@ -66,6 +91,7 @@ export const useDiscover = create<DiscoverState>((set, get) => ({
         total: result.total,
         hasMore: result.hasMore,
         page: nextPage,
+        sources: [],
         searched: true,
         message: merged.length === 0 ? '没有搜到结果' : null,
         scrollTop: reset ? 0 : get().scrollTop

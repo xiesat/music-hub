@@ -266,7 +266,8 @@ export function LibraryView(): JSX.Element {
     }
 
     const allFavorite = ids.every((id) => items.find((item) => item.id === id)?.favorite)
-    const result = await window.api.ui.showTrackMenu({ ids, favorite: allFavorite })
+    const canDownload = ids.every((id) => id.startsWith('remote:'))
+    const result = await window.api.ui.showTrackMenu({ ids, favorite: allFavorite, canDownload })
     if (result) await applyMenuAction(result)
   }
 

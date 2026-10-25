@@ -103,6 +103,29 @@ export function PlaylistView({ playlistId }: Props): JSX.Element {
       if (picked.length === 0) return
 
       switch (result.action) {
+        case 'download': {
+          let ok = 0
+          let failed = 0
+          for (const track of picked) {
+            if (!track.providerId || !track.providerKey) {
+              failed += 1
+              continue
+            }
+            try {
+              await window.api.providers.download(
+                track.providerId,
+                track.providerKey,
+                track.title,
+                track.artist ?? ''
+              )
+              ok += 1
+            } catch {
+              failed += 1
+            }
+          }
+          setMessage('下载完成 ' + ok + ' 首' + (failed > 0 ? '，失败 ' + failed + ' 首' : ''))
+          break
+        }
         case 'play': {
           const startIndex = items.findIndex((track) => track.id === ids[0])
           playQueue(items, Math.max(0, startIndex))
@@ -157,7 +180,8 @@ export function PlaylistView({ playlistId }: Props): JSX.Element {
       ids = [track.id]
     }
     const allFavorite = ids.every((id) => items.find((item) => item.id === id)?.favorite)
-    const result = await window.api.ui.showTrackMenu({ ids, favorite: allFavorite })
+    const canDownload = ids.every((id) => id.startsWith('remote:'))
+    const result = await window.api.ui.showTrackMenu({ ids, favorite: allFavorite, canDownload })
     if (result) await applyMenu(result)
   }
 

@@ -68,7 +68,9 @@ const providers: ProviderApi = {
     ipcRenderer.invoke('providers:toggle', id, enabled),
   search: (providerId: string, keyword: string, page: number) =>
     ipcRenderer.invoke('providers:search', providerId, keyword, page),
-  stream: (providerId: string, key: string) => ipcRenderer.invoke('providers:stream', providerId, key),
+  searchAll: (keyword: string, page: number) => ipcRenderer.invoke('providers:search-all', keyword, page),
+  stream: (providerId: string, key: string, meta?: { title?: string; artist?: string | null }) =>
+    ipcRenderer.invoke('providers:stream', providerId, key, meta),
   lyric: (providerId: string, key: string) => ipcRenderer.invoke('providers:lyric', providerId, key),
   onlineLyric: (title: string, artist: string | null) =>
     ipcRenderer.invoke('providers:online-lyric', title, artist),

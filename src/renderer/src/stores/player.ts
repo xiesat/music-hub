@@ -105,7 +105,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       if (!providerId || !providerKey) return
       set({ selectedTrack: null })
       void window.api.providers
-        .stream(providerId, providerKey)
+        .stream(providerId, providerKey, { title: selectedTrack.title, artist: selectedTrack.artist })
         .then((source) => {
           if (!source) {
             set({ error: '这首拿不到播放地址（可能需要会员或已下架）' })
@@ -140,7 +140,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       durationMs: tracks[index].durationMs ?? 0,
       error: null
     })
-    loadAndPlay(tracks[index])
+    // 统一走 playIndex：它负责给远程曲目取流，否则「播放全部」只会报播放失败
+    get().playIndex(index)
   },
 
   playIndex: (index, startAt = 0) => {
@@ -157,7 +158,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
         return
       }
       void window.api.providers
-        .stream(providerId, providerKey)
+        .stream(providerId, providerKey, { title: track.title, artist: track.artist })
         .then((source) => {
           if (!source) {
             set({ error: '这首拿不到播放地址（可能需要会员或已下架）' })

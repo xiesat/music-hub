@@ -46,11 +46,27 @@ export interface DownloadResult {
   bytes: number
 }
 
+export interface ProviderSourceStatus {
+  id: string
+  name: string
+  ok: boolean
+  count: number
+  error: string | null
+}
+
+export interface MultiSearchResult {
+  items: RemoteTrack[]
+  total: number
+  sources: ProviderSourceStatus[]
+}
+
 export interface ProviderApi {
   list(): Promise<ProviderInfo[]>
   toggle(id: string, enabled: boolean): Promise<void>
   search(providerId: string, keyword: string, page: number): Promise<SearchPage>
-  stream(providerId: string, key: string): Promise<StreamSource | null>
+  /** 并行搜索所有已启用音源，单个失败不影响整体 */
+  searchAll(keyword: string, page: number): Promise<MultiSearchResult>
+  stream(providerId: string, key: string, meta?: { title?: string; artist?: string | null }): Promise<StreamSource | null>
   lyric(providerId: string, key: string): Promise<LyricResult>
   /** 本地曲目缺歌词时，按 标题+艺人 在线匹配 */
   onlineLyric(title: string, artist: string | null): Promise<LyricResult>

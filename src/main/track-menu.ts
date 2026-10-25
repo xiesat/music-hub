@@ -15,7 +15,7 @@ export function popupTrackMenu(
   filePath: string | null,
   playlists: Playlist[]
 ): Promise<TrackMenuResult | null> {
-  const { ids, favorite } = payload
+  const { ids, favorite, canDownload } = payload
   const count = ids.length
   if (count === 0) return Promise.resolve(null)
 
@@ -44,6 +44,12 @@ export function popupTrackMenu(
       {
         label: favorite ? (count > 1 ? '取消收藏' : '取消收藏') : count > 1 ? '收藏选中的 {n} 首'.replace('{n}', String(count)) : '收藏',
         click: () => finish(favorite ? 'unfavorite' : 'favorite')
+      },
+      { type: 'separator' },
+      {
+        label: count > 1 ? '下载到本地（' + count + ' 首）' : '下载到本地',
+        enabled: Boolean(canDownload),
+        click: () => finish('download')
       },
       { type: 'separator' },
       {

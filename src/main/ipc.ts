@@ -32,6 +32,7 @@ import {
   lyricProvider,
   onlineLyric,
   searchProvider,
+  searchAllProviders,
   streamProvider,
   toggleProvider
 } from './providers'
@@ -138,7 +139,14 @@ export function registerIpc(): void {
   ipcMain.handle('providers:search', (_event, id: string, keyword: string, page: number) =>
     searchProvider(id, keyword, page)
   )
-  ipcMain.handle('providers:stream', (_event, id: string, key: string) => streamProvider(id, key))
+  ipcMain.handle('providers:search-all', (_event, keyword: string, page: number) =>
+    searchAllProviders(keyword, page)
+  )
+  ipcMain.handle(
+    'providers:stream',
+    (_event, id: string, key: string, meta?: { title?: string; artist?: string | null }) =>
+      streamProvider(id, key, meta)
+  )
   ipcMain.handle('providers:lyric', (_event, id: string, key: string) => lyricProvider(id, key))
   ipcMain.handle('providers:online-lyric', (_event, title: string, artist: string | null) =>
     onlineLyric(title, artist)

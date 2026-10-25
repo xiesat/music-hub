@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { useRef } from 'react'
-import { Heart, Play } from 'lucide-react'
+import { Cloud, Heart, Play } from 'lucide-react'
 import type { Track, TrackSort } from '@shared/types'
 import { useVirtualRows } from '../hooks/useVirtualRows'
 import { formatDuration } from '../lib/format'
@@ -172,6 +172,9 @@ export function TrackTable(props: Props): JSX.Element {
                     <div className="min-w-0">
                       <p className={["truncate", isCurrent ? "text-brand-300" : "text-ink-100"].join(" ")}>
                         {track.title}
+                        {track.id.startsWith('remote:') ? (
+                          <Cloud size={10} className="ml-1 inline-block align-baseline text-ink-500" />
+                        ) : null}
                       </p>
                       <p className="truncate text-[11px] text-ink-400">{track.artist ?? "未知艺术家"}</p>
                     </div>

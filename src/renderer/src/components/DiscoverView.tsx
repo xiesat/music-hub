@@ -45,6 +45,7 @@ export function DiscoverView(): JSX.Element {
   const searched = useDiscover((state) => state.searched)
   const scrollTop = useDiscover((state) => state.scrollTop)
   const downloading = useDiscover((state) => state.downloading)
+  const sources = useDiscover((state) => state.sources)
   const setProvider = useDiscover((state) => state.setProvider)
   const setKeyword = useDiscover((state) => state.setKeyword)
   const setScrollTop = useDiscover((state) => state.setScrollTop)
@@ -58,6 +59,7 @@ export function DiscoverView(): JSX.Element {
   const currentId = usePlayer((state) => state.queue[state.index]?.id ?? null)
   const selectedId = usePlayer((state) => state.selectedTrack?.id ?? null)
 
+  const providerNames = new Map(providers.map((item) => [item.id, item.name]))
   const listRef = useRef<HTMLDivElement | null>(null)
   const restoredRef = useRef(false)
 
@@ -87,7 +89,10 @@ export function DiscoverView(): JSX.Element {
   const playTrack = async (track: RemoteTrack): Promise<void> => {
     setBusyKey(track.key)
     try {
-      const source = await window.api.providers.stream(providerId, track.key)
+      const source = await window.api.providers.stream(providerId, track.key, {
+        title: track.title,
+        artist: track.artist
+      })
       if (!source) {
         useDiscover.setState({ error: '这首拿不到播放地址（可能需要会员或已下架）' })
         return
@@ -125,6 +130,7 @@ export function DiscoverView(): JSX.Element {
           onChange={(event) => setProvider(event.target.value)}
           className="h-9 rounded-lg border border-white/8 bg-ink-850 px-2 text-[12px] text-ink-200 outline-none"
         >
+          <option value="all">全部音源</option>
           {providers.map((item) => (
             <option key={item.id} value={item.id} disabled={!item.enabled}>
               {item.name}
@@ -154,6 +160,23 @@ export function DiscoverView(): JSX.Element {
           搜索
         </button>
       </div>
+
+      {sources.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-ink-850/40 px-6 py-1.5 text-[10px]">
+          {sources.map((source) => (
+            <span
+              key={source.id}
+              className={[
+                "rounded px-1.5 py-0.5",
+                source.ok ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-red-300'
+              ].join(' ')}
+              title={source.error ?? ''}
+            >
+              {source.name} {source.ok ? source.count + ' 条' : '失败'}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       {error ? (
         <div className="border-b border-red-500/20 bg-red-500/10 px-6 py-2 text-[11px] text-red-300">{error}</div>
@@ -214,6 +237,11 @@ export function DiscoverView(): JSX.Element {
                     {track.title}
                   </p>
                   <p className="truncate text-[11px] text-ink-400">
+                    {providerId === 'all' ? (
+                      <span className="mr-1 rounded bg-white/8 px-1 py-[1px] text-[9px] text-ink-300">
+                        {providerNames.get(track.providerId) ?? track.providerId}
+                      </span>
+                    ) : null}
                     {track.artist}
                     {track.album ? ' · ' + track.album : ''}
                   </p>
